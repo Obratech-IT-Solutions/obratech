@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { signOut, type User } from "firebase/auth";
-import { collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { Calendar, LogOut, Mail, MapPin, RefreshCw, Users } from "lucide-react";
 import { auth, db } from "./firebase";
 import "./admin-crm.css";
@@ -52,46 +52,72 @@ export default function AdminCRM({ user }: Props) {
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadClients = useCallback(async (isRefresh = false) => {
-    setError(null);
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const q = query(collection(db, "inquiries"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      const rows: InquiryClient[] = snap.docs.map((docSnap) => {
-        const d = docSnap.data();
-        const created = d.createdAt;
-        let createdAt = "—";
-        if (created instanceof Timestamp) {
-          createdAt = created.toDate().toLocaleString();
-        }
-        const servicesRaw = d.services;
-        const services = Array.isArray(servicesRaw)
-          ? servicesRaw.map((s) => String(s))
-          : [];
-        return {
-          id: docSnap.id,
-          name: String(d.name ?? ""),
-          email: String(d.email ?? ""),
-          address: String(d.address ?? ""),
-          clientKind: String(d.clientKind ?? ""),
-          services,
-          projectCategory: String(d.projectCategory ?? ""),
-          description: String(d.description ?? ""),
-          meetingDate: String(d.meetingDate ?? ""),
-          createdAt,
-        };
-      });
-      setClients(rows);
-    } catch (e) {
-      console.error(e);
-      setError("Could not load clients. Check Firestore rules and your connection.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const loadClients = useCallback(
+    async (isRefresh = false) => {
+      setError(null);
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      try {
+        // Fresh token so Security Rules see email / auth claims (fixes some CRM reads).
+        await user.getIdToken(true);
+        const snap = await getDocs(collection(db, "inquiries"));
+        const rowsWithMs = snap.docs.map((docSnap) => {
+          const d = docSnap.data();
+          const created = d.createdAt;
+          let createdAt = "—";
+          let ms = 0;
+          if (created instanceof Timestamp) {
+            const dt = created.toDate();
+            createdAt = dt.toLocaleString();
+            ms = dt.getTime();
+          }
+          const servicesRaw = d.services;
+          const services = Array.isArray(servicesRaw)
+            ? servicesRaw.map((s) => String(s))
+            : [];
+          const row: InquiryClient = {
+            id: docSnap.id,
+            name: String(d.name ?? ""),
+            email: String(d.email ?? ""),
+            address: String(d.address ?? ""),
+            clientKind: String(d.clientKind ?? ""),
+            services,
+            projectCategory: String(d.projectCategory ?? ""),
+            description: String(d.description ?? ""),
+            meetingDate: String(d.meetingDate ?? ""),
+            createdAt,
+          };
+          return { row, ms };
+        });
+        rowsWithMs.sort((a, b) => b.ms - a.ms);
+        setClients(rowsWithMs.map((x) => x.row));
+      } catch (e) {
+        console.error(e);
+        const o = e && typeof e === "object" ? (e as Record<string, unknown>) : null;
+        const duck =
+          o && typeof o.code === "string" && typeof o.message === "string"
+            ? `${o.code}: ${o.message}`
+            : null;
+        const fallback =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : e != null
+                ? String(e)
+                : "Unknown error";
+        setError(
+          duck ??
+            fallback +
+              " — If this is permission-denied, open Firebase → Firestore → Rules, paste repo firestore.rules, Publish, then hard-refresh this page.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [user],
+  );
 
   useEffect(() => {
     void loadClients(false);

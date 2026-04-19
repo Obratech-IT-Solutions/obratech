@@ -40,13 +40,11 @@ service cloud.firestore {
         && request.resource.data.consent == true
         && request.resource.data.createdAt is timestamp;
 
-      // Only the CRM admin account may read or manage inquiries from the client.
-      allow read, update, delete: if request.auth != null
-        && request.auth.token.email == 'obratech@admin.com';
+      // Reads/updates/deletes: any signed-in Firebase user (CRM is gated in the app).
+      // Tighten with custom claims when you add more Auth users.
+      allow read, update, delete: if request.auth != null;
     }
 
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // No catch-all: everything else stays denied by default.
   }
 }

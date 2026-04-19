@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCKQJ0uLe_tncYytwxotSPrd0JgZ-bwH-0",
@@ -15,7 +15,17 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 
-export const db = getFirestore(firebaseApp);
+/** Long-polling helps some networks / ad blockers that break WebChannel to Firestore. */
+let db: Firestore;
+try {
+  db = initializeFirestore(firebaseApp, {
+    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
+  });
+} catch {
+  db = getFirestore(firebaseApp);
+}
+export { db };
 
 export const auth = getAuth(firebaseApp);
 
