@@ -1,0 +1,147 @@
+.admin-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: linear-gradient(160deg, #f4f4f4 0%, #fff 45%, #ececec 100%);
+}
+
+.admin-gate-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--line, #e8e8e8);
+  border-radius: 1.25rem;
+  padding: 2rem 1.75rem 1.75rem;
+  box-shadow: var(--shadow, 0 14px 40px rgba(0, 0, 0, 0.06));
+}
+
+.admin-gate-brand {
+  display: inline-block;
+  line-height: 0;
+  margin-bottom: 1.25rem;
+}
+
+.admin-gate-logo {
+  height: 2.5rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.admin-gate-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #888;
+}
+
+.admin-gate-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111;
+}
+
+.admin-gate-sub {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted, #5c5c5c);
+  line-height: 1.45;
+}
+
+.admin-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-gate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.admin-gate-field input {
+  font: inherit;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.65rem;
+  border: 1px solid #d8d8d8;
+  background: #fafafa;
+  color: #111;
+}
+
+.admin-gate-field input:focus {
+  outline: none;
+  border-color: #111;
+  background: #fff;
+}
+
+.admin-gate-submit {
+  margin-top: 0.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.65rem;
+  background: #111;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.admin-gate-submit:hover {
+  background: #000;
+}
+
+.admin-gate-notice {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #444;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+}
+
+.admin-gate-back {
+  display: inline-block;
+  margin-top: 1.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #555;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-gate-back:hover {
+  color: #111;
+}
+
+.admin-gate-loading {
+  text-align: center;
+}
+
+.admin-gate-notice-error {
+  background: #fff5f5;
+  border-color: #f0caca;
+  color: #7a1e1e;
+}
+
+.admin-gate-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.admin-gate-submit:disabled:hover {
+  background: #111;
+}

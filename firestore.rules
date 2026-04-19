@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Public inquiry form: clients may only CREATE new docs (no reads/updates/deletes).
+    match /inquiries/{inquiryId} {
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'name',
+          'email',
+          'address',
+          'clientKind',
+          'services',
+          'projectCategory',
+          'description',
+          'meetingDate',
+          'consent',
+          'createdAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 3
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.address is string
+        && request.resource.data.address.size() >= 1
+        && request.resource.data.address.size() <= 1000
+        && request.resource.data.clientKind in ['business', 'student']
+        && request.resource.data.services is list
+        && request.resource.data.services.size() >= 1
+        && request.resource.data.services.size() <= 10
+        && request.resource.data.projectCategory in ['none', 'business', 'capstone', 'model3d']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 1
+        && request.resource.data.description.size() <= 5000
+        && request.resource.data.meetingDate is string
+        && request.resource.data.meetingDate.size() == 10
+        && request.resource.data.meetingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.consent == true
+        && request.resource.data.createdAt is timestamp;
+
+      // Only the CRM admin account may read or manage inquiries from the client.
+      allow read, update, delete: if request.auth != null
+        && request.auth.token.email == 'obratech@admin.com';
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
