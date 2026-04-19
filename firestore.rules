@@ -35,8 +35,10 @@ service cloud.firestore {
         && request.resource.data.description.size() >= 1
         && request.resource.data.description.size() <= 5000
         && request.resource.data.meetingDate is string
-        && request.resource.data.meetingDate.size() == 10
-        && request.resource.data.meetingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.meetingDate.size() <= 10
+        && (request.resource.data.meetingDate.size() == 0
+            || (request.resource.data.meetingDate.size() == 10
+                && request.resource.data.meetingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && request.resource.data.consent == true
         && request.resource.data.createdAt is timestamp;
 

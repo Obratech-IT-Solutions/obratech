@@ -84,12 +84,18 @@ export default function AdminLogin() {
   return (
     <div className="admin-gate">
       <div className="admin-gate-card">
-        <a className="admin-gate-brand" href="/">
-          <img src="/logo.png" alt="Obratech" className="admin-gate-logo" />
-        </a>
-        <p className="admin-gate-label">Admin</p>
-        <h1 className="admin-gate-title">CRM sign-in</h1>
-        <p className="admin-gate-sub">Authorized staff only. Use your Firebase admin email and password.</p>
+        <header className="admin-gate-head">
+          <div className="admin-gate-logo-shell">
+            <a className="admin-gate-brand" href="/" aria-label="Obratech home">
+              <img src="/logo.png" alt="" className="admin-gate-logo" />
+            </a>
+          </div>
+          <p className="admin-gate-label">Admin</p>
+          <h1 className="admin-gate-title">CRM sign-in</h1>
+          <p className="admin-gate-sub">
+            Authorized staff only. Use your Firebase admin email and password.
+          </p>
+        </header>
 
         <form className="admin-gate-form" onSubmit={(e) => void handleSubmit(e)}>
           <label className="admin-gate-field">

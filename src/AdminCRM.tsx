@@ -19,7 +19,6 @@ export type InquiryClient = {
 };
 
 const SERVICE_LABELS: Record<string, string> = {
-  "custom-system": "Custom system",
   "web-app": "Web app",
   "mobile-app": "Mobile app",
   "3d-model": "3D model",

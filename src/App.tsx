@@ -1,5 +1,5 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import {
   Box,
   Briefcase,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import "./App.css";
 import { db } from "./firebase";
+import { InquiryMeetingDatePicker } from "./InquiryMeetingDatePicker";
 
 const nav = [
   { label: "Home", href: "#home" },
@@ -105,7 +106,6 @@ const categoryLabels: Record<Exclude<Category, null>, string> = {
 };
 
 const inquiryOfferOptions = [
-  { id: "custom-system", label: "Custom system" },
   { id: "web-app", label: "Web app" },
   { id: "mobile-app", label: "Mobile app" },
   { id: "3d-model", label: "3D model" },
@@ -114,6 +114,8 @@ const inquiryOfferOptions = [
 ] as const;
 
 type ClientKind = "business" | "student" | "";
+
+type InquiryStep = 1 | 2 | 3;
 
 const emptyOffers = (): Record<(typeof inquiryOfferOptions)[number]["id"], boolean> =>
   Object.fromEntries(inquiryOfferOptions.map((o) => [o.id, false])) as Record<
@@ -138,12 +140,16 @@ export default function App() {
   const [inquiryFormError, setInquiryFormError] = useState<string | null>(null);
   const [inquirySent, setInquirySent] = useState(false);
   const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
+  const [inquiryStep, setInquiryStep] = useState<InquiryStep>(1);
+  const inquirySentRef = useRef(false);
+  inquirySentRef.current = inquirySent;
 
   const toggleInquiryOffer = (id: (typeof inquiryOfferOptions)[number]["id"]) => {
     setInquiryOffers((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const resetInquiryForm = () => {
+  const clearInquiryFields = () => {
     setInquiryName("");
     setInquiryAddress("");
     setInquiryEmail("");
@@ -155,40 +161,88 @@ export default function App() {
     setInquiryFormError(null);
     setInquirySent(false);
     setInquirySubmitting(false);
+    setInquiryStep(1);
   };
 
-  const handleInquirySubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const openInquiryModal = () => {
+    setInquiryFormError(null);
+    setInquiryStep(1);
+    if (inquirySent) {
+      clearInquiryFields();
+    }
+    setInquiryModalOpen(true);
+  };
+
+  const handleInquireNavClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    openInquiryModal();
+  };
+
+  const closeInquiryModal = () => {
+    setInquiryModalOpen(false);
+    setInquiryStep(1);
+    setInquiryFormError(null);
+    if (!inquirySentRef.current) {
+      clearInquiryFields();
+    }
+  };
+
+  const startAnotherInquiryInModal = () => {
+    clearInquiryFields();
+    setInquiryModalOpen(true);
+  };
+
+  const goInquiryBack = () => {
+    setInquiryFormError(null);
+    if (inquiryStep > 1) {
+      setInquiryStep((s) => (s === 3 ? 2 : 1));
+    }
+  };
+
+  const onInquiryWizardSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setInquiryFormError(null);
 
-    if (!inquiryName.trim()) {
-      setInquiryFormError("Please enter your name.");
+    if (inquiryStep === 1) {
+      if (!inquiryName.trim()) {
+        setInquiryFormError("Please enter your name.");
+        return;
+      }
+      if (!inquiryAddress.trim()) {
+        setInquiryFormError("Please enter your address.");
+        return;
+      }
+      if (!inquiryEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inquiryEmail.trim())) {
+        setInquiryFormError("Please enter a valid email address.");
+        return;
+      }
+      setInquiryStep(2);
       return;
     }
-    if (!inquiryAddress.trim()) {
-      setInquiryFormError("Please enter your address.");
+
+    if (inquiryStep === 2) {
+      if (!inquiryClientKind) {
+        setInquiryFormError("Please select Business or Student.");
+        return;
+      }
+      if (!inquiryOfferOptions.some((o) => inquiryOffers[o.id])) {
+        setInquiryFormError("Select at least one service you are interested in.");
+        return;
+      }
+      if (!inquiryDescription.trim()) {
+        setInquiryFormError("Please add a brief description of your project.");
+        return;
+      }
+      setInquiryStep(3);
       return;
     }
-    if (!inquiryEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inquiryEmail.trim())) {
-      setInquiryFormError("Please enter a valid email address.");
-      return;
-    }
-    if (!inquiryClientKind) {
-      setInquiryFormError("Please select Business or Student.");
-      return;
-    }
-    if (!inquiryOfferOptions.some((o) => inquiryOffers[o.id])) {
-      setInquiryFormError("Select at least one service you are interested in.");
-      return;
-    }
-    if (!inquiryDescription.trim()) {
-      setInquiryFormError("Please add a brief description of your project.");
-      return;
-    }
-    if (!inquiryMeetingDate) {
-      setInquiryFormError("Please choose a preferred meeting date.");
-      return;
-    }
+
+    void submitInquiryToFirestore();
+  };
+
+  const submitInquiryToFirestore = async () => {
+    setInquiryFormError(null);
     if (!inquiryConsent) {
       setInquiryFormError("Please check the box to confirm you want to be contacted.");
       return;
@@ -204,7 +258,7 @@ export default function App() {
         services: inquiryOfferOptions.filter((o) => inquiryOffers[o.id]).map((o) => o.id),
         projectCategory: category ?? "none",
         description: inquiryDescription.trim(),
-        meetingDate: inquiryMeetingDate,
+        meetingDate: inquiryMeetingDate.trim() || "",
         consent: inquiryConsent,
         createdAt: serverTimestamp(),
       });
@@ -224,15 +278,22 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (menuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = menuOpen || inquiryModalOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [menuOpen]);
+  }, [menuOpen, inquiryModalOpen]);
+
+  useEffect(() => {
+    if (!inquiryModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closeInquiryModal();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inquiryModalOpen]);
 
   const totalProjects = showcaseProjects.length;
   const leftProject = showcaseProjects[(activeProject - 1 + totalProjects) % totalProjects];
@@ -253,13 +314,13 @@ export default function App() {
                 {item.label}
               </a>
             ))}
-            <a className="nav-inquire" href="#inquire" onClick={() => setMenuOpen(false)}>
+            <a className="nav-inquire" href="#inquire" onClick={handleInquireNavClick}>
               Inquire
             </a>
           </nav>
 
           <div className="header-actions">
-            <a className="btn-accent btn-header" href="#inquire">
+            <a className="btn-accent btn-header" href="#inquire" onClick={handleInquireNavClick}>
               Inquire
             </a>
             <button
@@ -297,7 +358,7 @@ export default function App() {
                 Custom, Reliable, and Built for Growth
               </p>
               <div className="hero-cta">
-                <a className="btn-accent" href="#inquire">
+                <a className="btn-accent" href="#inquire" onClick={handleInquireNavClick}>
                   Scale Me Up
                 </a>
               </div>
@@ -492,138 +553,195 @@ export default function App() {
           </div>
 
           <div className="inquire-form-wrap">
-            <div className="container">
+            <div className="container inquire-modal-cta-inner">
               <p className="section-label inquire-form-kicker">Inquiry form</p>
               <h3 className="inquire-form-heading">Share your details</h3>
               <p className="inquire-form-intro">
-                Fill this out and we will follow up. You can combine this with the project type you
-                selected above{category ? ` (${categoryLabels[category]})` : ""}.
+                Open the form and walk through a few quick steps. We will follow up using the project
+                type you selected above{category ? ` (${categoryLabels[category]})` : ""}.
               </p>
+              <button type="button" className="inquiry-open-modal" onClick={openInquiryModal}>
+                Open inquiry form
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {inquiryModalOpen ? (
+          <div
+            className="inquiry-modal-root"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inquiry-modal-title"
+          >
+            <button
+              type="button"
+              className="inquiry-modal-backdrop"
+              aria-label="Close dialog"
+              onClick={closeInquiryModal}
+            />
+            <div className="inquiry-modal-dialog">
+              <button
+                type="button"
+                className="inquiry-modal-x"
+                aria-label="Close"
+                onClick={closeInquiryModal}
+              >
+                <X size={20} strokeWidth={2} />
+              </button>
+              <h3 id="inquiry-modal-title" className="inquiry-modal-title">
+                Project inquiry
+              </h3>
+              <div className="inquiry-modal-progress" aria-hidden>
+                {([1, 2, 3] as const).map((n) => (
+                  <span
+                    key={n}
+                    className={`inquiry-modal-dot${inquiryStep >= n ? " is-active" : ""}`}
+                  />
+                ))}
+              </div>
 
               {inquirySent ? (
-                <div className="inquire-form-card inquire-form-success" role="status">
+                <div className="inquire-form-success inquiry-modal-success" role="status">
                   <p className="inquire-form-success-title">Thanks — we received your inquiry.</p>
                   <p className="inquire-form-success-body">
                     Your details were saved to Firestore in the <strong>inquiries</strong> collection.
                     You can review them in the Firebase console under Firestore → Data.
                   </p>
-                  <button type="button" className="inquire-form-reset" onClick={resetInquiryForm}>
-                    Submit another inquiry
-                  </button>
+                  <div className="inquiry-modal-success-actions">
+                    <button type="button" className="inquire-form-reset" onClick={startAnotherInquiryInModal}>
+                      Submit another inquiry
+                    </button>
+                    <button type="button" className="inquiry-modal-secondary" onClick={closeInquiryModal}>
+                      Close
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <form className="inquire-form-card" onSubmit={handleInquirySubmit} noValidate>
-                  <div className="inquiry-grid">
-                    <label className="inquiry-field">
-                      <span className="inquiry-label">Full name</span>
-                      <input
-                        className="inquiry-input"
-                        type="text"
-                        name="name"
-                        autoComplete="name"
-                        value={inquiryName}
-                        onChange={(ev) => setInquiryName(ev.target.value)}
-                        placeholder="Your name"
-                      />
-                    </label>
-                    <label className="inquiry-field">
-                      <span className="inquiry-label">Email</span>
-                      <input
-                        className="inquiry-input"
-                        type="email"
-                        name="email"
-                        autoComplete="email"
-                        value={inquiryEmail}
-                        onChange={(ev) => setInquiryEmail(ev.target.value)}
-                        placeholder="you@email.com"
-                      />
-                    </label>
-                    <label className="inquiry-field inquiry-field-full">
-                      <span className="inquiry-label">Address</span>
-                      <input
-                        className="inquiry-input"
-                        type="text"
-                        name="address"
-                        autoComplete="street-address"
-                        value={inquiryAddress}
-                        onChange={(ev) => setInquiryAddress(ev.target.value)}
-                        placeholder="City / region or full address"
-                      />
-                    </label>
-                  </div>
-
-                  <fieldset className="inquiry-fieldset">
-                    <legend className="inquiry-legend">You are a</legend>
-                    <div className="inquiry-segment" role="radiogroup" aria-label="Client type">
-                      <button
-                        type="button"
-                        className={`inquiry-segment-btn${inquiryClientKind === "business" ? " is-on" : ""}`}
-                        aria-pressed={inquiryClientKind === "business"}
-                        onClick={() => setInquiryClientKind("business")}
-                      >
-                        Business
-                      </button>
-                      <button
-                        type="button"
-                        className={`inquiry-segment-btn${inquiryClientKind === "student" ? " is-on" : ""}`}
-                        aria-pressed={inquiryClientKind === "student"}
-                        onClick={() => setInquiryClientKind("student")}
-                      >
-                        Student
-                      </button>
+                <form className="inquiry-modal-form" onSubmit={onInquiryWizardSubmit} noValidate>
+                  {inquiryStep === 1 ? (
+                    <div className="inquiry-grid">
+                      <label className="inquiry-field">
+                        <span className="inquiry-label">Full name</span>
+                        <input
+                          className="inquiry-input"
+                          type="text"
+                          name="name"
+                          autoComplete="name"
+                          value={inquiryName}
+                          onChange={(ev) => setInquiryName(ev.target.value)}
+                          placeholder="Your name"
+                        />
+                      </label>
+                      <label className="inquiry-field">
+                        <span className="inquiry-label">Email</span>
+                        <input
+                          className="inquiry-input"
+                          type="email"
+                          name="email"
+                          autoComplete="email"
+                          value={inquiryEmail}
+                          onChange={(ev) => setInquiryEmail(ev.target.value)}
+                          placeholder="you@email.com"
+                        />
+                      </label>
+                      <label className="inquiry-field inquiry-field-full">
+                        <span className="inquiry-label">Address</span>
+                        <input
+                          className="inquiry-input"
+                          type="text"
+                          name="address"
+                          autoComplete="street-address"
+                          value={inquiryAddress}
+                          onChange={(ev) => setInquiryAddress(ev.target.value)}
+                          placeholder="City / region or full address"
+                        />
+                      </label>
                     </div>
-                  </fieldset>
+                  ) : null}
 
-                  <fieldset className="inquiry-fieldset">
-                    <legend className="inquiry-legend">Interested in</legend>
-                    <div className="inquiry-offers">
-                      {inquiryOfferOptions.map((o) => (
-                        <label key={o.id} className="inquiry-check">
-                          <input
-                            type="checkbox"
-                            checked={inquiryOffers[o.id]}
-                            onChange={() => toggleInquiryOffer(o.id)}
-                          />
-                          <span>{o.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
+                  {inquiryStep === 2 ? (
+                    <>
+                      <fieldset className="inquiry-fieldset">
+                        <legend className="inquiry-legend">You are a</legend>
+                        <div className="inquiry-segment" role="radiogroup" aria-label="Client type">
+                          <button
+                            type="button"
+                            className={`inquiry-segment-btn${inquiryClientKind === "business" ? " is-on" : ""}`}
+                            aria-pressed={inquiryClientKind === "business"}
+                            onClick={() => setInquiryClientKind("business")}
+                          >
+                            Business
+                          </button>
+                          <button
+                            type="button"
+                            className={`inquiry-segment-btn${inquiryClientKind === "student" ? " is-on" : ""}`}
+                            aria-pressed={inquiryClientKind === "student"}
+                            onClick={() => setInquiryClientKind("student")}
+                          >
+                            Student
+                          </button>
+                        </div>
+                      </fieldset>
 
-                  <label className="inquiry-field inquiry-field-full">
-                    <span className="inquiry-label">Brief description</span>
-                    <textarea
-                      className="inquiry-textarea"
-                      name="description"
-                      rows={4}
-                      value={inquiryDescription}
-                      onChange={(ev) => setInquiryDescription(ev.target.value)}
-                      placeholder="Goals, timeline, budget range, or links…"
-                    />
-                  </label>
+                      <fieldset className="inquiry-fieldset">
+                        <legend className="inquiry-legend">Interested in</legend>
+                        <div className="inquiry-offers">
+                          {inquiryOfferOptions.map((o) => (
+                            <label key={o.id} className="inquiry-check">
+                              <input
+                                type="checkbox"
+                                checked={inquiryOffers[o.id]}
+                                onChange={() => toggleInquiryOffer(o.id)}
+                              />
+                              <span>{o.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
 
-                  <label className="inquiry-field inquiry-field-narrow">
-                    <span className="inquiry-label">Preferred meeting date</span>
-                    <input
-                      className="inquiry-input inquiry-input-date"
-                      type="date"
-                      name="meeting"
-                      value={inquiryMeetingDate}
-                      onChange={(ev) => setInquiryMeetingDate(ev.target.value)}
-                    />
-                  </label>
+                      <label className="inquiry-field inquiry-field-full">
+                        <span className="inquiry-label">Brief description</span>
+                        <textarea
+                          className="inquiry-textarea"
+                          name="description"
+                          rows={4}
+                          value={inquiryDescription}
+                          onChange={(ev) => setInquiryDescription(ev.target.value)}
+                          placeholder="Goals, timeline, budget range, or links…"
+                        />
+                      </label>
+                    </>
+                  ) : null}
 
-                  <label className="inquiry-consent">
-                    <input
-                      type="checkbox"
-                      checked={inquiryConsent}
-                      onChange={(ev) => setInquiryConsent(ev.target.checked)}
-                    />
-                    <span>
-                      I agree to be contacted about this inquiry and confirm the information I provided
-                      is accurate.
-                    </span>
-                  </label>
+                  {inquiryStep === 3 ? (
+                    <>
+                      <div className="inquiry-field inquiry-field-narrow inquiry-field-full">
+                        <span className="inquiry-label" id="inquiry-meeting-label">
+                          Preferred meeting date
+                        </span>
+                        <InquiryMeetingDatePicker
+                          id="inquiry-meeting-trigger"
+                          aria-labelledby="inquiry-meeting-label"
+                          value={inquiryMeetingDate}
+                          onChange={setInquiryMeetingDate}
+                        />
+                        <span className="inquiry-hint">Optional — leave blank if you do not have a day yet.</span>
+                      </div>
+
+                      <label className="inquiry-consent">
+                        <input
+                          type="checkbox"
+                          checked={inquiryConsent}
+                          onChange={(ev) => setInquiryConsent(ev.target.checked)}
+                        />
+                        <span>
+                          I agree to be contacted about this inquiry and confirm the information I provided
+                          is accurate.
+                        </span>
+                      </label>
+                    </>
+                  ) : null}
 
                   {inquiryFormError ? (
                     <p className="inquiry-form-error" role="alert">
@@ -631,14 +749,27 @@ export default function App() {
                     </p>
                   ) : null}
 
-                  <button type="submit" className="inquiry-submit" disabled={inquirySubmitting}>
-                    {inquirySubmitting ? "Saving…" : "Submit inquiry"}
-                  </button>
+                  <div className="inquiry-modal-footer">
+                    {inquiryStep > 1 ? (
+                      <button type="button" className="inquiry-modal-secondary" onClick={goInquiryBack}>
+                        Back
+                      </button>
+                    ) : (
+                      <span className="inquiry-modal-footer-spacer" aria-hidden />
+                    )}
+                    <button
+                      type="submit"
+                      className="inquiry-modal-primary"
+                      disabled={inquirySubmitting && inquiryStep === 3}
+                    >
+                      {inquiryStep < 3 ? "Next" : inquirySubmitting ? "Saving…" : "Submit inquiry"}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
           </div>
-        </section>
+        ) : null}
       </main>
 
       <footer className="site-footer">
