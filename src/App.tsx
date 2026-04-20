@@ -78,7 +78,7 @@ const faqItems = [
   },
   {
     q: "How can I get a discount?",
-    a: "Like and leave a review on our official Facebook page, then send a screenshot when you inquire to receive a 10% discount on your project!",
+    a: "Like and leave a review on our official Facebook page to receive a 10% discount on your project!",
   },
 ];
 
