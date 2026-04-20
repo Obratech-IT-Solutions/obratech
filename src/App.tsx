@@ -1,6 +1,7 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import {
+  ArrowUpRight,
   Box,
   Briefcase,
   ChevronLeft,
@@ -55,27 +56,11 @@ const showcaseProjects = [
   },
 ];
 
-const servicesCards = [
-  {
-    title: "MOBILE APP & WEB APP DEVELOPMENT",
-    desc: "Modern, scalable apps built for real-world use — fast UX, clean code, and maintainable architecture.",
-    image: "/azauto.png",
-  },
-  {
-    title: "AZ TRAVELS & TOURS",
-    desc: "Booking and management system — packages, offers, CRM dashboard, and streamlined admin operations.",
-    image: "/aztravel.png",
-  },
-  {
-    title: "IOT DEVICE FABRICATION",
-    desc: "Sensor-integrated systems with monitoring and dashboards — from prototype to deployment.",
-    image: "/iot.png",
-  },
-  {
-    title: "CUSTOM 3D MODEL & PRINTS",
-    desc: "Precision 3D modeling and printing for prototypes, parts, and custom product ideas.",
-    image: "/3dmodel.png",
-  },
+const servicesCards: { title: string; image: string }[] = [
+  { title: "Mobile & web", image: "/azauto.png" },
+  { title: "Travel & CRM", image: "/aztravel.png" },
+  { title: "IoT fabrication", image: "/iot.png" },
+  { title: "3D model & print", image: "/3dmodel.png" },
 ];
 
 const faqItems = [
@@ -430,28 +415,56 @@ export default function App() {
           </div>
         </section>
 
-        <section id="work" className="section section-work bg-mesh">
+        <section id="work" className="section section-work section-work-saas">
           <div className="container">
-            <div className="work-services-head">
-              <p className="section-label services-label">Our Services</p>
-              <p className="work-services-subhead">
-                Explore what we build — from custom systems to automation. Designed to solve real
-                business problems with modern, scalable solutions.
-              </p>
-            </div>
+            <header className="work-saas-head">
+              <div className="work-saas-head-copy">
+                <h2 className="work-saas-h2">Built to sell, ship, and scale</h2>
+                <p className="work-saas-lead">Apps · Travel · IoT · 3D</p>
+              </div>
+              <button
+                type="button"
+                className="work-saas-head-cta"
+                onClick={() => {
+                  setMenuOpen(false);
+                  openInquiryModal();
+                }}
+              >
+                <span>Start a project</span>
+                <ArrowUpRight size={17} strokeWidth={2} aria-hidden />
+              </button>
+            </header>
 
-            <div className="services-grid">
-              {servicesCards.map((card) => (
-                <article key={card.title} className="service-card">
-                  <div className="service-card-media">
-                    <img src={card.image} alt={card.title} />
-                  </div>
-                  <div className="service-card-body">
-                    <h3 className="service-card-title">{card.title}</h3>
-                    <p className="service-card-desc">{card.desc}</p>
-                  </div>
-                </article>
-              ))}
+            <div className="work-saas-grid">
+              {servicesCards.map((card, idx) => {
+                const openInquiry = () => {
+                  setMenuOpen(false);
+                  openInquiryModal();
+                };
+                return (
+                  <article
+                    key={card.title}
+                    role="button"
+                    tabIndex={0}
+                    className={`work-saas-card${idx === 1 ? " is-featured" : ""}`}
+                    onClick={openInquiry}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openInquiry();
+                      }
+                    }}
+                    aria-label={`Start a project — ${card.title}`}
+                  >
+                    <div className="work-saas-card-top">
+                      <h3 className="work-saas-card-title">{card.title}</h3>
+                    </div>
+                    <div className="work-saas-preview">
+                      <img src={card.image} alt="" />
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
