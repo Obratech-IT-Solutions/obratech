@@ -15,6 +15,7 @@
   gap: 1.25rem;
   min-height: var(--header-h);
   padding: 0.5rem 0;
+  position: relative;
 }
 
 .brand {
@@ -110,9 +111,10 @@
   .nav {
     order: 3;
     position: absolute;
-    top: calc(var(--header-h) - 0.1rem);
-    left: 0.9rem;
-    right: 0.9rem;
+    top: calc(100% - 0.1rem);
+    right: 0;
+    left: auto;
+    width: min(280px, calc(100vw - 1.8rem));
     z-index: 130;
     grid-column: auto;
     display: flex;
