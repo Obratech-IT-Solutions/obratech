@@ -12,6 +12,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./App.css";
 import { db } from "./firebase";
 import { InquiryMeetingDatePicker } from "./InquiryMeetingDatePicker";
@@ -793,6 +794,7 @@ export default function App() {
           <p className="footer-copy">© 2026 All Rights Reserved</p>
         </div>
       </footer>
+      <SpeedInsights />
     </>
   );
 }
