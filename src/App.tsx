@@ -113,6 +113,7 @@ export default function App() {
   const [category, setCategory] = useState<Category>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeProject, setActiveProject] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [inquiryName, setInquiryName] = useState("");
   const [inquiryAddress, setInquiryAddress] = useState("");
@@ -280,6 +281,20 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [inquiryModalOpen]);
 
+  useEffect(() => {
+    const hideLoader = () => {
+      window.setTimeout(() => setInitialLoading(false), 700);
+    };
+
+    if (document.readyState === "complete") {
+      hideLoader();
+      return;
+    }
+
+    window.addEventListener("load", hideLoader);
+    return () => window.removeEventListener("load", hideLoader);
+  }, []);
+
   const totalProjects = showcaseProjects.length;
   const leftProject = showcaseProjects[(activeProject - 1 + totalProjects) % totalProjects];
   const centerProject = showcaseProjects[activeProject];
@@ -287,6 +302,14 @@ export default function App() {
 
   return (
     <>
+      {initialLoading ? (
+        <div className="site-loader" role="status" aria-live="polite" aria-label="Loading website">
+          <div className="site-loader-card">
+            <img src="/logo.png" alt="Obratech" className="site-loader-logo" />
+          </div>
+        </div>
+      ) : null}
+
       <header className={`site-header${menuOpen ? " menu-open" : ""}`}>
         <div className="container header-inner">
           <a className="brand" href="#home" onClick={() => setMenuOpen(false)}>

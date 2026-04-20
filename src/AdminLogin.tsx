@@ -2,10 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signOut,
   type User,
 } from "firebase/auth";
-import { ADMIN_EMAIL } from "./adminConstants";
 import AdminCRM from "./AdminCRM.tsx";
 import { auth } from "./firebase";
 import "./admin-login.css";
@@ -30,13 +28,6 @@ export default function AdminLogin() {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (!u) {
         setUser(null);
-        setAuthReady(true);
-        return;
-      }
-      if (u.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-        void signOut(auth);
-        setUser(null);
-        setNotice("This account is not authorized for the CRM.");
         setAuthReady(true);
         return;
       }
@@ -93,7 +84,7 @@ export default function AdminLogin() {
           <p className="admin-gate-label">Admin</p>
           <h1 className="admin-gate-title">CRM sign-in</h1>
           <p className="admin-gate-sub">
-            Authorized staff only. Use your Firebase admin email and password.
+            Sign in with your Firebase account to access the CRM.
           </p>
         </header>
 
@@ -106,7 +97,7 @@ export default function AdminLogin() {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={ADMIN_EMAIL}
+              placeholder="your@email.com"
               required
             />
           </label>
