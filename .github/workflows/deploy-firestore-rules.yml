@@ -1,0 +1,35 @@
+# Deploys Firestore security rules when they change on main.
+# Repo secret required: FIREBASE_TOKEN — create with: firebase login:ci
+# (install firebase-tools globally or: npx firebase-tools login:ci)
+
+name: Deploy Firestore rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firestore.rules"
+      - "firebase.json"
+      - ".firebaserc"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Firestore rules
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: npx firebase deploy --only firestore:rules --non-interactive
