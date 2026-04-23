@@ -9,7 +9,17 @@ import {
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
-import { Calendar, LogOut, Mail, MapPin, Pencil, RefreshCw, Users, X } from "lucide-react";
+import {
+  Calendar,
+  LogOut,
+  Mail,
+  MapPin,
+  Menu,
+  Pencil,
+  RefreshCw,
+  Users,
+  X,
+} from "lucide-react";
 import { auth, db } from "./firebase";
 import { CrmLandingCalendar } from "./CrmLandingCalendar";
 import "./admin-crm.css";
@@ -151,6 +161,7 @@ export default function AdminCRM({ user }: Props) {
   const [editDeadlineIso, setEditDeadlineIso] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const loadClients = useCallback(
     async (isRefresh = false) => {
@@ -238,6 +249,15 @@ export default function AdminCRM({ user }: Props) {
     void loadClients(false);
   }, [loadClients]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileMenuOpen]);
+
   const meetingDays = useMemo(() => {
     const set = new Map<string, Date>();
     for (const c of clients) {
@@ -288,6 +308,7 @@ export default function AdminCRM({ user }: Props) {
   }, [clients, search, calendarSelected]);
 
   const openEdit = (c: InquiryClient) => {
+    setMobileMenuOpen(false);
     setEditClient(c);
     setEditMeetingStatus(c.meetingStatus);
     setEditRevisionNotes(c.revisionNotes);
@@ -333,8 +354,17 @@ export default function AdminCRM({ user }: Props) {
 
   const clearCalendarFilter = () => setCalendarSelected(undefined);
 
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+
+  const scrollToSection = (id: string) => {
+    closeMobileMenu();
+    window.requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
-    <div className="crm-app">
+    <div className={`crm-app${mobileMenuOpen ? " crm-mobile-menu-open" : ""}`}>
       <aside className="crm-sidebar" aria-label="CRM navigation">
         <div className="crm-sidebar-brand">
           <img src="/logo.png" alt="" />
@@ -361,20 +391,62 @@ export default function AdminCRM({ user }: Props) {
 
       <div className="crm-main">
         <div className="crm-mobile-bar">
-          <img src="/logo.png" alt="Obratech" />
-          <strong>CRM</strong>
-          <div className="crm-mobile-actions">
-            <a className="crm-link-site" href="/">
-              Site
-            </a>
-            <button type="button" className="crm-btn-ghost" onClick={handleSignOut}>
-              <LogOut size={16} />
-            </button>
+          <div className="crm-mobile-bar-start">
+            <img src="/logo.png" alt="Obratech" />
+            <strong>CRM</strong>
           </div>
+          <button
+            type="button"
+            className="crm-mobile-burger"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="crm-mobile-nav"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMobileMenuOpen((o) => !o)}
+          >
+            {mobileMenuOpen ? <X size={22} strokeWidth={2} /> : <Menu size={22} strokeWidth={2} />}
+          </button>
         </div>
 
+        <div
+          id="crm-mobile-nav"
+          className={`crm-mobile-nav${mobileMenuOpen ? " is-open" : ""}`}
+          aria-hidden={!mobileMenuOpen}
+        >
+          <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-schedule")}>
+            <Calendar size={18} strokeWidth={2} aria-hidden />
+            Schedule / calendar
+          </button>
+          <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-clients")}>
+            <Users size={18} strokeWidth={2} aria-hidden />
+            Clients
+          </button>
+          <a className="crm-mobile-nav-item" href="/" onClick={closeMobileMenu}>
+            Public website
+          </a>
+          <button
+            type="button"
+            className="crm-mobile-nav-item crm-mobile-nav-danger"
+            onClick={() => {
+              closeMobileMenu();
+              void handleSignOut();
+            }}
+          >
+            <LogOut size={18} strokeWidth={2} aria-hidden />
+            Sign out
+          </button>
+        </div>
+
+        {mobileMenuOpen ? (
+          <button
+            type="button"
+            className="crm-mobile-nav-backdrop"
+            aria-label="Close menu"
+            onClick={closeMobileMenu}
+          />
+        ) : null}
+
         <div className="crm-main-inner">
-          <header className="crm-main-header">
+          <header className="crm-main-header" id="crm-clients">
             <div>
               <h1>Clients</h1>
               <p>
@@ -408,26 +480,36 @@ export default function AdminCRM({ user }: Props) {
             </div>
           </header>
 
-          {!loading && !error ? (
-            <section className="crm-landing-calendar" aria-label="Meetings and deadlines">
-              <div className="crm-landing-calendar-head">
-                <h2 className="crm-section-title">Schedule</h2>
-                {calendarSelected ? (
-                  <button type="button" className="crm-btn-text" onClick={clearCalendarFilter}>
-                    Clear day filter ({toISODateLocal(calendarSelected)})
-                  </button>
-                ) : null}
-              </div>
-              <CrmLandingCalendar
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                selected={calendarSelected}
-                onSelect={setCalendarSelected}
-                meetingDays={meetingDays}
-                deadlineDays={deadlineDays}
-              />
-            </section>
-          ) : null}
+          <section
+            id="crm-schedule"
+            className="crm-landing-calendar"
+            aria-label="Meetings and deadlines"
+          >
+            {loading ? (
+              <p className="crm-calendar-placeholder">Loading calendar…</p>
+            ) : error ? (
+              <p className="crm-calendar-placeholder">Schedule appears after the list loads.</p>
+            ) : (
+              <>
+                <div className="crm-landing-calendar-head">
+                  <h2 className="crm-section-title">Schedule</h2>
+                  {calendarSelected ? (
+                    <button type="button" className="crm-btn-text" onClick={clearCalendarFilter}>
+                      Clear day filter ({toISODateLocal(calendarSelected)})
+                    </button>
+                  ) : null}
+                </div>
+                <CrmLandingCalendar
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  selected={calendarSelected}
+                  onSelect={setCalendarSelected}
+                  meetingDays={meetingDays}
+                  deadlineDays={deadlineDays}
+                />
+              </>
+            )}
+          </section>
 
           <div className="crm-stats">
             <div className="crm-stat">
