@@ -445,6 +445,339 @@
   }
 }
 
+/* Landing calendar */
+.crm-landing-calendar {
+  margin-bottom: 1.5rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border-radius: 1.1rem;
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-line);
+  box-shadow: var(--crm-shadow);
+}
+
+.crm-landing-calendar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.crm-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--crm-text);
+}
+
+.crm-btn-text {
+  padding: 0.35rem 0.65rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #f0f0f0;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--crm-text);
+  cursor: pointer;
+}
+
+.crm-btn-text:hover {
+  background: #e4e4e4;
+}
+
+.crm-calendar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.crm-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--crm-muted);
+}
+
+.crm-cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.crm-cal-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.crm-cal-dot-meeting {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.crm-cal-dot-deadline {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.22);
+}
+
+.crm-calendar-wrap {
+  --rdp-accent-color: #111;
+  --rdp-background-color: #f8f8f8;
+  font-size: 0.88rem;
+}
+
+.crm-calendar-wrap .rdp-root {
+  --rdp-day-width: 2.35rem;
+  --rdp-day-height: 2.35rem;
+}
+
+.crm-calendar-wrap .rdp-months {
+  justify-content: center;
+}
+
+.crm-calendar-wrap .rdp-day_button {
+  border-radius: 0.45rem;
+}
+
+.crm-cal-day-meeting .rdp-day_button:not([disabled]) {
+  background: rgba(37, 99, 235, 0.14);
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.crm-cal-day-deadline .rdp-day_button:not([disabled]) {
+  box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.55);
+  font-weight: 700;
+}
+
+.crm-cal-day-meeting.crm-cal-day-deadline .rdp-day_button:not([disabled]) {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(220, 38, 38, 0.12));
+}
+
+.crm-card-edit {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 1px solid var(--crm-line);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.crm-card-edit:hover {
+  border-color: #bbb;
+  background: #fafafa;
+}
+
+.crm-badge-meeting {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.65rem;
+}
+
+.crm-badge-meeting-scheduled {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.crm-badge-meeting-met {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.crm-badge-meeting-no_show {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.crm-badge-meeting-rescheduled {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.crm-badge-meeting-not_applicable {
+  background: #f4f4f5;
+  color: #71717a;
+  border-color: var(--crm-line);
+}
+
+.crm-meta-deadline {
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.crm-revision-preview {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #444;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.crm-revision-preview strong {
+  color: var(--crm-text);
+  font-weight: 700;
+}
+
+/* Edit modal */
+.crm-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.crm-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.crm-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  max-height: min(90vh, 640px);
+  overflow: auto;
+  padding: 1.35rem 1.35rem 1.15rem;
+  border-radius: 1rem;
+  background: var(--crm-surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--crm-line);
+  text-align: left;
+}
+
+.crm-modal-x {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 1px solid var(--crm-line);
+  background: var(--crm-surface);
+  color: var(--crm-text);
+  cursor: pointer;
+}
+
+.crm-modal-x:hover {
+  border-color: #111;
+}
+
+.crm-modal-title {
+  margin: 0 2rem 0.35rem 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--crm-text);
+}
+
+.crm-modal-sub {
+  margin: 0 0 1.1rem;
+  font-size: 0.85rem;
+  color: var(--crm-muted);
+  line-height: 1.45;
+}
+
+.crm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.crm-field-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.crm-field-hint {
+  font-size: 0.75rem;
+  color: var(--crm-muted);
+}
+
+.crm-select,
+.crm-input,
+.crm-textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--crm-line);
+  background: #fafafa;
+  color: var(--crm-text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.crm-textarea {
+  resize: vertical;
+  min-height: 5.5rem;
+  line-height: 1.5;
+}
+
+.crm-select:focus,
+.crm-input:focus,
+.crm-textarea:focus {
+  outline: none;
+  border-color: #111;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+.crm-modal-error {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.55rem;
+  background: #fff5f5;
+  border: 1px solid #f0caca;
+  color: #8b2525;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.crm-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
 @media (max-width: 900px) {
   .crm-app {
     flex-direction: column;

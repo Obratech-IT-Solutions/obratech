@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { signOut, type User } from "firebase/auth";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
-import { Calendar, LogOut, Mail, MapPin, RefreshCw, Users } from "lucide-react";
+import {
+  collection,
+  deleteField,
+  doc,
+  getDocs,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
+import { Calendar, LogOut, Mail, MapPin, Pencil, RefreshCw, Users, X } from "lucide-react";
 import { auth, db } from "./firebase";
+import { CrmLandingCalendar } from "./CrmLandingCalendar";
 import "./admin-crm.css";
+
+export type MeetingStatus = "scheduled" | "met" | "no_show" | "rescheduled" | "not_applicable";
 
 export type InquiryClient = {
   id: string;
@@ -16,6 +27,10 @@ export type InquiryClient = {
   description: string;
   meetingDate: string;
   createdAt: string;
+  meetingStatus: MeetingStatus;
+  revisionNotes: string;
+  deadlineAt: string;
+  crmUpdatedAt: string;
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -33,11 +48,87 @@ const CATEGORY_LABELS: Record<string, string> = {
   model3d: "3D model",
 };
 
+const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
+  scheduled: "Scheduled",
+  met: "Met",
+  no_show: "No show",
+  rescheduled: "Rescheduled",
+  not_applicable: "N/A",
+};
+
+const MEETING_STATUS_ORDER: MeetingStatus[] = [
+  "scheduled",
+  "met",
+  "no_show",
+  "rescheduled",
+  "not_applicable",
+];
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function toISODateLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function fromISODateLocal(s: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return undefined;
+  return dt;
+}
+
+function startOfDayLocal(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function sameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function defaultMeetingStatus(meetingDate: string): MeetingStatus {
+  const hasDate = meetingDate.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(meetingDate);
+  return hasDate ? "scheduled" : "not_applicable";
+}
+
+function parseMeetingStatus(raw: unknown, meetingDate: string): MeetingStatus {
+  const s = typeof raw === "string" ? raw : "";
+  if (
+    s === "scheduled" ||
+    s === "met" ||
+    s === "no_show" ||
+    s === "rescheduled" ||
+    s === "not_applicable"
+  ) {
+    return s;
+  }
+  return defaultMeetingStatus(meetingDate);
+}
+
+function timestampToDisplay(ts: Timestamp): string {
+  return ts.toDate().toLocaleString();
+}
+
+function timestampToISODate(ts: Timestamp): string {
+  return toISODateLocal(ts.toDate());
+}
+
+function deadlineTimestampFromISO(iso: string): Timestamp {
+  const d = fromISODateLocal(iso);
+  if (!d) return Timestamp.fromDate(new Date());
+  return Timestamp.fromDate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0));
 }
 
 type Props = {
@@ -51,13 +142,22 @@ export default function AdminCRM({ user }: Props) {
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const [calendarMonth, setCalendarMonth] = useState(() => startOfDayLocal(new Date()));
+  const [calendarSelected, setCalendarSelected] = useState<Date | undefined>(undefined);
+
+  const [editClient, setEditClient] = useState<InquiryClient | null>(null);
+  const [editMeetingStatus, setEditMeetingStatus] = useState<MeetingStatus>("scheduled");
+  const [editRevisionNotes, setEditRevisionNotes] = useState("");
+  const [editDeadlineIso, setEditDeadlineIso] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const loadClients = useCallback(
     async (isRefresh = false) => {
       setError(null);
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       try {
-        // Fresh token so Security Rules see email / auth claims (fixes some CRM reads).
         await user.getIdToken(true);
         const snap = await getDocs(collection(db, "inquiries"));
         const rowsWithMs = snap.docs.map((docSnap) => {
@@ -74,6 +174,18 @@ export default function AdminCRM({ user }: Props) {
           const services = Array.isArray(servicesRaw)
             ? servicesRaw.map((s) => String(s))
             : [];
+          const meetingDate = String(d.meetingDate ?? "");
+          const meetingStatus = parseMeetingStatus(d.meetingStatus, meetingDate);
+          const revisionNotes =
+            typeof d.revisionNotes === "string" ? d.revisionNotes : "";
+          let deadlineAt = "";
+          if (d.deadline instanceof Timestamp) {
+            deadlineAt = timestampToISODate(d.deadline);
+          }
+          let crmUpdatedAt = "—";
+          if (d.crmUpdatedAt instanceof Timestamp) {
+            crmUpdatedAt = timestampToDisplay(d.crmUpdatedAt);
+          }
           const row: InquiryClient = {
             id: docSnap.id,
             name: String(d.name ?? ""),
@@ -83,8 +195,12 @@ export default function AdminCRM({ user }: Props) {
             services,
             projectCategory: String(d.projectCategory ?? ""),
             description: String(d.description ?? ""),
-            meetingDate: String(d.meetingDate ?? ""),
+            meetingDate,
             createdAt,
+            meetingStatus,
+            revisionNotes,
+            deadlineAt,
+            crmUpdatedAt,
           };
           return { row, ms };
         });
@@ -122,22 +238,100 @@ export default function AdminCRM({ user }: Props) {
     void loadClients(false);
   }, [loadClients]);
 
+  const meetingDays = useMemo(() => {
+    const set = new Map<string, Date>();
+    for (const c of clients) {
+      const d = fromISODateLocal(c.meetingDate);
+      if (d) {
+        const k = toISODateLocal(startOfDayLocal(d));
+        set.set(k, startOfDayLocal(d));
+      }
+    }
+    return [...set.values()];
+  }, [clients]);
+
+  const deadlineDays = useMemo(() => {
+    const set = new Map<string, Date>();
+    for (const c of clients) {
+      if (!c.deadlineAt || c.deadlineAt.length !== 10) continue;
+      const d = fromISODateLocal(c.deadlineAt);
+      if (d) {
+        const k = toISODateLocal(startOfDayLocal(d));
+        set.set(k, startOfDayLocal(d));
+      }
+    }
+    return [...set.values()];
+  }, [clients]);
+
   const filtered = useMemo(() => {
+    let list = clients;
     const q = search.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.address.toLowerCase().includes(q),
-    );
-  }, [clients, search]);
+    if (q) {
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.address.toLowerCase().includes(q),
+      );
+    }
+    if (calendarSelected) {
+      const sel = calendarSelected;
+      list = list.filter((c) => {
+        const md = fromISODateLocal(c.meetingDate);
+        const meetingMatch = md ? sameCalendarDay(md, sel) : false;
+        const dd = fromISODateLocal(c.deadlineAt);
+        const deadlineMatch = dd ? sameCalendarDay(dd, sel) : false;
+        return meetingMatch || deadlineMatch;
+      });
+    }
+    return list;
+  }, [clients, search, calendarSelected]);
+
+  const openEdit = (c: InquiryClient) => {
+    setEditClient(c);
+    setEditMeetingStatus(c.meetingStatus);
+    setEditRevisionNotes(c.revisionNotes);
+    setEditDeadlineIso(c.deadlineAt);
+    setSaveError(null);
+  };
+
+  const closeEdit = () => {
+    setEditClient(null);
+    setSaveError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editClient) return;
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const ref = doc(db, "inquiries", editClient.id);
+      const hasDeadline =
+        editDeadlineIso.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(editDeadlineIso);
+      await updateDoc(ref, {
+        meetingStatus: editMeetingStatus,
+        revisionNotes: editRevisionNotes,
+        crmUpdatedAt: serverTimestamp(),
+        deadline: hasDeadline ? deadlineTimestampFromISO(editDeadlineIso) : deleteField(),
+      });
+      closeEdit();
+      await loadClients(true);
+    } catch (e) {
+      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setSaveError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleRefresh = () => {
     void loadClients(true);
   };
 
   const handleSignOut = () => void signOut(auth);
+
+  const clearCalendarFilter = () => setCalendarSelected(undefined);
 
   return (
     <div className="crm-app">
@@ -183,7 +377,10 @@ export default function AdminCRM({ user }: Props) {
           <header className="crm-main-header">
             <div>
               <h1>Clients</h1>
-              <p>Inquiries submitted from your site. Search by name, email, or address.</p>
+              <p>
+                Inquiries from your site. Track meeting status, revisions, and deadlines. Use the
+                calendar to filter by date.
+              </p>
             </div>
             <div className="crm-toolbar">
               <input
@@ -211,6 +408,27 @@ export default function AdminCRM({ user }: Props) {
             </div>
           </header>
 
+          {!loading && !error ? (
+            <section className="crm-landing-calendar" aria-label="Meetings and deadlines">
+              <div className="crm-landing-calendar-head">
+                <h2 className="crm-section-title">Schedule</h2>
+                {calendarSelected ? (
+                  <button type="button" className="crm-btn-text" onClick={clearCalendarFilter}>
+                    Clear day filter ({toISODateLocal(calendarSelected)})
+                  </button>
+                ) : null}
+              </div>
+              <CrmLandingCalendar
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                selected={calendarSelected}
+                onSelect={setCalendarSelected}
+                meetingDays={meetingDays}
+                deadlineDays={deadlineDays}
+              />
+            </section>
+          ) : null}
+
           <div className="crm-stats">
             <div className="crm-stat">
               <div className="crm-stat-label">Total leads</div>
@@ -222,9 +440,7 @@ export default function AdminCRM({ user }: Props) {
             </div>
           </div>
 
-          {loading ? (
-            <div className="crm-state">Loading clients…</div>
-          ) : null}
+          {loading ? <div className="crm-state">Loading clients…</div> : null}
 
           {!loading && error ? (
             <div className="crm-state crm-state-error" role="alert">
@@ -236,7 +452,9 @@ export default function AdminCRM({ user }: Props) {
             <div className="crm-state">
               {clients.length === 0
                 ? "No inquiries yet. Submissions from your public form will appear here."
-                : "No clients match your search."}
+                : calendarSelected
+                  ? `No clients with a meeting or deadline on ${toISODateLocal(calendarSelected)}.`
+                  : "No clients match your search."}
             </div>
           ) : null}
 
@@ -255,12 +473,25 @@ export default function AdminCRM({ user }: Props) {
                         {c.email}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      className="crm-card-edit"
+                      onClick={() => openEdit(c)}
+                      aria-label={`Edit CRM fields for ${c.name || c.email}`}
+                    >
+                      <Pencil size={16} strokeWidth={2} />
+                    </button>
                   </div>
 
                   <div className="crm-badges">
                     <span className="crm-badge crm-badge-accent">{c.clientKind || "—"}</span>
                     <span className="crm-badge">
                       {CATEGORY_LABELS[c.projectCategory] ?? c.projectCategory}
+                    </span>
+                    <span
+                      className={`crm-badge crm-badge-meeting crm-badge-meeting-${c.meetingStatus}`}
+                    >
+                      {MEETING_STATUS_LABELS[c.meetingStatus]}
                     </span>
                   </div>
 
@@ -273,7 +504,19 @@ export default function AdminCRM({ user }: Props) {
                       <Calendar size={14} strokeWidth={2} aria-hidden />
                       <span>Meeting: {c.meetingDate || "—"}</span>
                     </div>
+                    {c.deadlineAt ? (
+                      <div className="crm-meta-row crm-meta-deadline">
+                        <Calendar size={14} strokeWidth={2} aria-hidden />
+                        <span>Deadline: {c.deadlineAt}</span>
+                      </div>
+                    ) : null}
                   </div>
+
+                  {c.revisionNotes ? (
+                    <p className="crm-revision-preview">
+                      <strong>Revision notes</strong> — {c.revisionNotes}
+                    </p>
+                  ) : null}
 
                   {c.services.length > 0 ? (
                     <div className="crm-tags" aria-label="Services">
@@ -287,13 +530,84 @@ export default function AdminCRM({ user }: Props) {
 
                   {c.description ? <p className="crm-desc">{c.description}</p> : null}
 
-                  <footer className="crm-card-footer">Submitted {c.createdAt}</footer>
+                  <footer className="crm-card-footer">
+                    Submitted {c.createdAt}
+                    {c.crmUpdatedAt !== "—" ? ` · CRM updated ${c.crmUpdatedAt}` : null}
+                  </footer>
                 </article>
               ))}
             </div>
           ) : null}
         </div>
       </div>
+
+      {editClient ? (
+        <div className="crm-modal-root" role="dialog" aria-modal="true" aria-labelledby="crm-edit-title">
+          <button type="button" className="crm-modal-backdrop" aria-label="Close" onClick={closeEdit} />
+          <div className="crm-modal-dialog">
+            <button type="button" className="crm-modal-x" onClick={closeEdit} aria-label="Close">
+              <X size={18} />
+            </button>
+            <h2 id="crm-edit-title" className="crm-modal-title">
+              {editClient.name || editClient.email}
+            </h2>
+            <p className="crm-modal-sub">Meeting status, revision notes, and deadline</p>
+
+            <label className="crm-field">
+              <span className="crm-field-label">Meeting status</span>
+              <select
+                className="crm-select"
+                value={editMeetingStatus}
+                onChange={(e) => setEditMeetingStatus(e.target.value as MeetingStatus)}
+              >
+                {MEETING_STATUS_ORDER.map((v) => (
+                  <option key={v} value={v}>
+                    {MEETING_STATUS_LABELS[v]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="crm-field">
+              <span className="crm-field-label">Revision notes</span>
+              <textarea
+                className="crm-textarea"
+                value={editRevisionNotes}
+                onChange={(e) => setEditRevisionNotes(e.target.value)}
+                rows={5}
+                placeholder="Scope changes, feedback, next deliverables…"
+                maxLength={8000}
+              />
+            </label>
+
+            <label className="crm-field">
+              <span className="crm-field-label">Deadline</span>
+              <input
+                type="date"
+                className="crm-input"
+                value={editDeadlineIso}
+                onChange={(e) => setEditDeadlineIso(e.target.value)}
+              />
+              <span className="crm-field-hint">Leave empty to clear deadline.</span>
+            </label>
+
+            {saveError ? (
+              <div className="crm-modal-error" role="alert">
+                {saveError}
+              </div>
+            ) : null}
+
+            <div className="crm-modal-actions">
+              <button type="button" className="crm-btn-ghost" onClick={closeEdit} disabled={saving}>
+                Cancel
+              </button>
+              <button type="button" className="crm-btn-primary" onClick={() => void handleSaveEdit()} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

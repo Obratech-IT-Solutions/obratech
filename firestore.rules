@@ -2,21 +2,71 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function inquiryCreateKeys() {
+      return [
+        'name',
+        'email',
+        'address',
+        'clientKind',
+        'services',
+        'projectCategory',
+        'description',
+        'meetingDate',
+        'consent',
+        'createdAt'
+      ];
+    }
+
+    function inquiryAllKeys() {
+      return [
+        'name',
+        'email',
+        'address',
+        'clientKind',
+        'services',
+        'projectCategory',
+        'description',
+        'meetingDate',
+        'consent',
+        'createdAt',
+        'meetingStatus',
+        'revisionNotes',
+        'deadline',
+        'crmUpdatedAt'
+      ];
+    }
+
+    function inquiryImmutableUnchanged() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return after.name == before.name
+        && after.email == before.email
+        && after.address == before.address
+        && after.clientKind == before.clientKind
+        && after.services == before.services
+        && after.projectCategory == before.projectCategory
+        && after.description == before.description
+        && after.meetingDate == before.meetingDate
+        && after.consent == before.consent
+        && after.createdAt == before.createdAt;
+    }
+
+    function crmFieldsValid() {
+      let after = request.resource.data;
+      return (!('meetingStatus' in after)
+          || after.meetingStatus in ['scheduled', 'met', 'no_show', 'rescheduled', 'not_applicable'])
+        && (!('revisionNotes' in after)
+          || (after.revisionNotes is string && after.revisionNotes.size() <= 8000))
+        && (!('deadline' in after)
+          || after.deadline == null
+          || after.deadline is timestamp)
+        && (!('crmUpdatedAt' in after) || after.crmUpdatedAt is timestamp);
+    }
+
     // Public inquiry form: clients may only CREATE new docs (no reads/updates/deletes).
     match /inquiries/{inquiryId} {
       allow create: if
-        request.resource.data.keys().hasOnly([
-          'name',
-          'email',
-          'address',
-          'clientKind',
-          'services',
-          'projectCategory',
-          'description',
-          'meetingDate',
-          'consent',
-          'createdAt'
-        ])
+        request.resource.data.keys().hasOnly(inquiryCreateKeys())
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 200
@@ -42,9 +92,14 @@ service cloud.firestore {
         && request.resource.data.consent == true
         && request.resource.data.createdAt is timestamp;
 
-      // Reads/updates/deletes: any signed-in Firebase user (CRM is gated in the app).
-      // Tighten with custom claims when you add more Auth users.
-      allow read, update, delete: if request.auth != null;
+      // CRM updates: auth users may only add/change CRM fields; inquiry payload stays immutable.
+      allow update: if request.auth != null
+        && request.resource.data.keys().hasOnly(inquiryAllKeys())
+        && inquiryImmutableUnchanged()
+        && crmFieldsValid();
+
+      // Reads/deletes: any signed-in Firebase user (CRM is gated in the app).
+      allow read, delete: if request.auth != null;
     }
 
     // No catch-all: everything else stays denied by default.
