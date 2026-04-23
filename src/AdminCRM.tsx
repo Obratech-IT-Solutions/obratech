@@ -390,50 +390,52 @@ export default function AdminCRM({ user }: Props) {
       </aside>
 
       <div className="crm-main">
-        <div className="crm-mobile-bar">
-          <div className="crm-mobile-bar-start">
-            <img src="/logo.png" alt="Obratech" />
-            <strong>CRM</strong>
+        <div className={`crm-mobile-header${mobileMenuOpen ? " is-menu-open" : ""}`}>
+          <div className="crm-mobile-bar">
+            <div className="crm-mobile-bar-start">
+              <img src="/logo.png" alt="Obratech" />
+              <strong>CRM</strong>
+            </div>
+            <button
+              type="button"
+              className="crm-mobile-burger"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="crm-mobile-nav"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              onClick={() => setMobileMenuOpen((o) => !o)}
+            >
+              {mobileMenuOpen ? <X size={22} strokeWidth={2} /> : <Menu size={22} strokeWidth={2} />}
+            </button>
           </div>
-          <button
-            type="button"
-            className="crm-mobile-burger"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="crm-mobile-nav"
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            onClick={() => setMobileMenuOpen((o) => !o)}
-          >
-            {mobileMenuOpen ? <X size={22} strokeWidth={2} /> : <Menu size={22} strokeWidth={2} />}
-          </button>
-        </div>
 
-        <div
-          id="crm-mobile-nav"
-          className={`crm-mobile-nav${mobileMenuOpen ? " is-open" : ""}`}
-          aria-hidden={!mobileMenuOpen}
-        >
-          <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-schedule")}>
-            <Calendar size={18} strokeWidth={2} aria-hidden />
-            Schedule / calendar
-          </button>
-          <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-clients")}>
-            <Users size={18} strokeWidth={2} aria-hidden />
-            Clients
-          </button>
-          <a className="crm-mobile-nav-item" href="/" onClick={closeMobileMenu}>
-            Public website
-          </a>
-          <button
-            type="button"
-            className="crm-mobile-nav-item crm-mobile-nav-danger"
-            onClick={() => {
-              closeMobileMenu();
-              void handleSignOut();
-            }}
+          <div
+            id="crm-mobile-nav"
+            className={`crm-mobile-nav${mobileMenuOpen ? " is-open" : ""}`}
+            aria-hidden={!mobileMenuOpen}
           >
-            <LogOut size={18} strokeWidth={2} aria-hidden />
-            Sign out
-          </button>
+            <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-schedule")}>
+              <Calendar size={18} strokeWidth={2} aria-hidden />
+              Schedule / calendar
+            </button>
+            <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-clients")}>
+              <Users size={18} strokeWidth={2} aria-hidden />
+              Clients
+            </button>
+            <a className="crm-mobile-nav-item" href="/" onClick={closeMobileMenu}>
+              Public website
+            </a>
+            <button
+              type="button"
+              className="crm-mobile-nav-item crm-mobile-nav-danger"
+              onClick={() => {
+                closeMobileMenu();
+                void handleSignOut();
+              }}
+            >
+              <LogOut size={18} strokeWidth={2} aria-hidden />
+              Sign out
+            </button>
+          </div>
         </div>
 
         {mobileMenuOpen ? (

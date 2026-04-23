@@ -435,7 +435,11 @@
   display: none;
 }
 
-/* Hidden on desktop; shown in mobile @media below */
+/* Hidden on desktop; mobile layout in @media below */
+.crm-mobile-header {
+  display: none;
+}
+
 .crm-mobile-nav {
   display: none;
 }
@@ -793,8 +797,20 @@
   }
 
   .crm-main {
-    position: relative;
     min-width: 0;
+  }
+
+  /* Sticky shell so the dropdown positions under the bar (not the full .crm-main). */
+  .crm-mobile-header {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 220;
+    background: var(--crm-surface);
+  }
+
+  .crm-mobile-header.is-menu-open {
+    z-index: 230;
   }
 
   .crm-mobile-bar {
@@ -806,9 +822,7 @@
     background: var(--crm-surface);
     border-bottom: 1px solid var(--crm-line);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-    position: sticky;
-    top: 0;
-    z-index: 220;
+    position: relative;
   }
 
   .crm-mobile-bar-start {
@@ -843,17 +857,17 @@
     align-items: stretch;
     gap: 0;
     padding: 0.35rem 0;
-    margin: 0 1rem;
+    margin: 0;
     background: var(--crm-surface);
     border: 1px solid var(--crm-line);
     border-radius: 12px;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
     position: absolute;
-    top: calc(100% - 0.15rem);
+    top: calc(100% + 0.35rem);
     right: 1rem;
     left: auto;
-    width: min(300px, calc(100vw - 2rem));
-    z-index: 230;
+    width: min(280px, calc(100vw - 2rem));
+    z-index: 2;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-6px);
