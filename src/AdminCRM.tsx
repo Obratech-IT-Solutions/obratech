@@ -11,17 +11,25 @@ import {
 } from "firebase/firestore";
 import {
   Calendar,
+  Kanban,
+  LayoutDashboard,
   LogOut,
   Mail,
   MapPin,
   Menu,
   Pencil,
   RefreshCw,
+  Settings,
   Users,
   X,
 } from "lucide-react";
 import { auth, db } from "./firebase";
 import { CrmLandingCalendar } from "./CrmLandingCalendar";
+import CrmDashboardView from "./CrmDashboardView";
+import CrmPipelineView from "./CrmPipelineView";
+import CrmSettingsView from "./CrmSettingsView";
+import { dealExistsForInquiry, fetchCrmDeals, promoteInquiryToPipeline } from "./crm/crmApi";
+import type { CrmDeal } from "./crm/crmModel";
 import "./admin-crm.css";
 
 export type MeetingStatus = "scheduled" | "met" | "no_show" | "rescheduled" | "not_applicable";
@@ -145,7 +153,14 @@ type Props = {
   user: User;
 };
 
+type AdminView = "dashboard" | "leads" | "pipeline" | "settings";
+
 export default function AdminCRM({ user }: Props) {
+  const [activeView, setActiveView] = useState<AdminView>("dashboard");
+  const [crmRefreshKey, setCrmRefreshKey] = useState(0);
+  const [deals, setDeals] = useState<CrmDeal[]>([]);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+
   const [clients, setClients] = useState<InquiryClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +232,8 @@ export default function AdminCRM({ user }: Props) {
         });
         rowsWithMs.sort((a, b) => b.ms - a.ms);
         setClients(rowsWithMs.map((x) => x.row));
+        const dealSnap = await fetchCrmDeals();
+        setDeals(dealSnap);
       } catch (e) {
         console.error(e);
         const o = e && typeof e === "object" ? (e as Record<string, unknown>) : null;
@@ -321,6 +338,27 @@ export default function AdminCRM({ user }: Props) {
     setSaveError(null);
   };
 
+  const handlePromote = async (c: InquiryClient) => {
+    setPromotingId(c.id);
+    try {
+      await promoteInquiryToPipeline(user, {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        address: c.address,
+        projectCategory: c.projectCategory,
+        description: c.description,
+      });
+      setCrmRefreshKey((k) => k + 1);
+      await loadClients(true);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPromotingId(null);
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!editClient) return;
     setSaveError(null);
@@ -371,9 +409,37 @@ export default function AdminCRM({ user }: Props) {
           <span>Obratech CRM</span>
         </div>
         <nav className="crm-nav">
-          <button type="button" className="crm-nav-item is-active">
+          <button
+            type="button"
+            className={`crm-nav-item${activeView === "dashboard" ? " is-active" : ""}`}
+            onClick={() => setActiveView("dashboard")}
+          >
+            <LayoutDashboard size={18} strokeWidth={2} aria-hidden />
+            Dashboard
+          </button>
+          <button
+            type="button"
+            className={`crm-nav-item${activeView === "leads" ? " is-active" : ""}`}
+            onClick={() => setActiveView("leads")}
+          >
             <Users size={18} strokeWidth={2} aria-hidden />
-            Clients
+            Leads inbox
+          </button>
+          <button
+            type="button"
+            className={`crm-nav-item${activeView === "pipeline" ? " is-active" : ""}`}
+            onClick={() => setActiveView("pipeline")}
+          >
+            <Kanban size={18} strokeWidth={2} aria-hidden />
+            Pipeline
+          </button>
+          <button
+            type="button"
+            className={`crm-nav-item${activeView === "settings" ? " is-active" : ""}`}
+            onClick={() => setActiveView("settings")}
+          >
+            <Settings size={18} strokeWidth={2} aria-hidden />
+            Settings
           </button>
         </nav>
         <div className="crm-sidebar-spacer" />
@@ -413,13 +479,62 @@ export default function AdminCRM({ user }: Props) {
             className={`crm-mobile-nav${mobileMenuOpen ? " is-open" : ""}`}
             aria-hidden={!mobileMenuOpen}
           >
-            <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-schedule")}>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
+                setActiveView("dashboard");
+                closeMobileMenu();
+              }}
+            >
+              <LayoutDashboard size={18} strokeWidth={2} aria-hidden />
+              Dashboard
+            </button>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
+                setActiveView("leads");
+                closeMobileMenu();
+                window.requestAnimationFrame(() => scrollToSection("crm-schedule"));
+              }}
+            >
               <Calendar size={18} strokeWidth={2} aria-hidden />
               Schedule / calendar
             </button>
-            <button type="button" className="crm-mobile-nav-item" onClick={() => scrollToSection("crm-clients")}>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
+                setActiveView("leads");
+                closeMobileMenu();
+                window.requestAnimationFrame(() => scrollToSection("crm-clients"));
+              }}
+            >
               <Users size={18} strokeWidth={2} aria-hidden />
-              Clients
+              Leads inbox
+            </button>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
+                setActiveView("pipeline");
+                closeMobileMenu();
+              }}
+            >
+              <Kanban size={18} strokeWidth={2} aria-hidden />
+              Pipeline
+            </button>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
+                setActiveView("settings");
+                closeMobileMenu();
+              }}
+            >
+              <Settings size={18} strokeWidth={2} aria-hidden />
+              Settings
             </button>
             <a className="crm-mobile-nav-item" href="/" onClick={closeMobileMenu}>
               Public website
@@ -448,12 +563,25 @@ export default function AdminCRM({ user }: Props) {
         ) : null}
 
         <div className="crm-main-inner">
+          {activeView === "dashboard" ? (
+            <CrmDashboardView user={user} refreshKey={crmRefreshKey} />
+          ) : null}
+          {activeView === "pipeline" ? <CrmPipelineView user={user} refreshKey={crmRefreshKey} /> : null}
+          {activeView === "settings" ? (
+            <CrmSettingsView
+              user={user}
+              refreshKey={crmRefreshKey}
+              onSaved={() => setCrmRefreshKey((k) => k + 1)}
+            />
+          ) : null}
+
+          {activeView === "leads" ? (
+            <>
           <header className="crm-main-header" id="crm-clients">
             <div>
-              <h1>Clients</h1>
+              <h1>Leads inbox</h1>
               <p>
-                Inquiries from your site. Track meeting status, revisions, and deadlines. Use the
-                calendar to filter by date.
+                Web inquiries. Track meetings, revisions, and deadlines — or add a lead to the sales pipeline.
               </p>
             </div>
             <div className="crm-toolbar">
@@ -614,6 +742,21 @@ export default function AdminCRM({ user }: Props) {
 
                   {c.description ? <p className="crm-desc">{c.description}</p> : null}
 
+                  <div className="crm-card-actions">
+                    {dealExistsForInquiry(deals, c.id) ? (
+                      <span className="crm-pipeline-pill">In pipeline</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="crm-btn-promote"
+                        disabled={promotingId === c.id}
+                        onClick={() => void handlePromote(c)}
+                      >
+                        {promotingId === c.id ? "Adding…" : "Add to pipeline"}
+                      </button>
+                    )}
+                  </div>
+
                   <footer className="crm-card-footer">
                     Submitted {c.createdAt}
                     {c.crmUpdatedAt !== "—" ? ` · CRM updated ${c.crmUpdatedAt}` : null}
@@ -621,6 +764,8 @@ export default function AdminCRM({ user }: Props) {
                 </article>
               ))}
             </div>
+          ) : null}
+            </>
           ) : null}
         </div>
       </div>

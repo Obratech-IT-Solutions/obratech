@@ -102,6 +102,23 @@ service cloud.firestore {
       allow read, delete: if request.auth != null;
     }
 
+    // Obratech sales CRM (auth-only: staff console at ?admin=1)
+    match /crm_accounts/{id} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /crm_deals/{id} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /crm_activities/{id} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /crm_settings/{docId} {
+      allow read, write, delete: if request.auth != null;
+    }
+
     // No catch-all: everything else stays denied by default.
   }
 }
