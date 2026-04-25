@@ -235,8 +235,8 @@ export async function createManualLead(user: User, input: ManualLeadInput, fires
   const clinic = clip(input.clinicName, 300) || "Clinic";
   const contact = clip(input.contactName, 200) || clinic;
   const email = clip(input.email, 320);
-  if (!email || !email.includes("@")) {
-    throw new Error("A valid email is required.");
+  if (email && !email.includes("@")) {
+    throw new Error("If provided, email should include an @ (e.g. name@clinic.com).");
   }
   const refDetail = input.source === "referral" ? clip(input.referralDetail, 500) : "";
   const extra = clip(input.extraDetails, 4000);

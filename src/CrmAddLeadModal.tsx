@@ -117,11 +117,10 @@ export default function CrmAddLeadModal({ user, open, onClose, onCreated }: Prop
             />
           </label>
           <label className="crm-field crm-field-half">
-            <span className="crm-field-label">Email *</span>
+            <span className="crm-field-label">Email (optional)</span>
             <input
               className="crm-input"
               type="email"
-              required
               autoComplete="email"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
