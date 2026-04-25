@@ -18,6 +18,7 @@ import {
   MapPin,
   Menu,
   Pencil,
+  Plus,
   RefreshCw,
   Settings,
   Users,
@@ -28,6 +29,7 @@ import { CrmLandingCalendar } from "./CrmLandingCalendar";
 import CrmDashboardView from "./CrmDashboardView";
 import CrmPipelineView from "./CrmPipelineView";
 import CrmSettingsView from "./CrmSettingsView";
+import CrmAddLeadModal from "./CrmAddLeadModal";
 import { dealExistsForInquiry, fetchCrmDeals, promoteInquiryToPipeline } from "./crm/crmApi";
 import type { CrmDeal } from "./crm/crmModel";
 import "./admin-crm.css";
@@ -177,6 +179,7 @@ export default function AdminCRM({ user }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadClients = useCallback(
     async (isRefresh = false) => {
@@ -595,6 +598,15 @@ export default function AdminCRM({ user }: Props) {
               />
               <button
                 type="button"
+                className="crm-btn-add-lead"
+                onClick={() => setAddLeadOpen(true)}
+                disabled={loading}
+              >
+                <Plus size={16} strokeWidth={2} aria-hidden />
+                Add lead
+              </button>
+              <button
+                type="button"
                 className="crm-btn-primary"
                 onClick={handleRefresh}
                 disabled={refreshing || loading}
@@ -769,6 +781,16 @@ export default function AdminCRM({ user }: Props) {
           ) : null}
         </div>
       </div>
+
+      <CrmAddLeadModal
+        user={user}
+        open={addLeadOpen}
+        onClose={() => setAddLeadOpen(false)}
+        onCreated={() => {
+          setCrmRefreshKey((k) => k + 1);
+          void loadClients(true);
+        }}
+      />
 
       {editClient ? (
         <div className="crm-modal-root" role="dialog" aria-modal="true" aria-labelledby="crm-edit-title">

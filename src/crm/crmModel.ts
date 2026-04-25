@@ -36,6 +36,30 @@ export const STAGE_LABELS: Record<DealStage, string> = {
 
 export type Niche = "dentist" | "aesthetics" | "private_clinic" | "other";
 
+export const LEAD_SOURCES = [
+  "referral",
+  "cold_reach",
+  "website",
+  "facebook_organic",
+  "facebook_ads",
+  "walk_in",
+  "event",
+  "other",
+] as const;
+
+export type LeadSource = (typeof LEAD_SOURCES)[number];
+
+export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
+  referral: "Referral",
+  cold_reach: "Cold reach / outreach",
+  website: "Website form",
+  facebook_organic: "Facebook (organic)",
+  facebook_ads: "Facebook (ads)",
+  walk_in: "Walk-in",
+  event: "Event / seminar",
+  other: "Other",
+};
+
 export type CrmAccount = {
   id: string;
   clinicName: string;
@@ -52,6 +76,8 @@ export type CrmAccount = {
   createdAt: string;
   updatedAt: string;
   notes: string;
+  referralDetail: string;
+  extraDetails: string;
 };
 
 export type CrmDeal = {

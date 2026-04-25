@@ -12,7 +12,7 @@ import {
 import type { User } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import { db } from "../firebase";
-import type { CrmAccount, CrmActivity, CrmConfig, CrmDeal, DealStage, Niche } from "./crmModel";
+import type { CrmAccount, CrmActivity, CrmConfig, CrmDeal, DealStage, LeadSource, Niche } from "./crmModel";
 import { DEAL_STAGES } from "./crmModel";
 
 export type PromoteInquiryInput = {
@@ -56,6 +56,8 @@ function parseAccount(id: string, d: Record<string, unknown>): CrmAccount {
     createdAt: tsToStr(d.createdAt),
     updatedAt: tsToStr(d.updatedAt),
     notes: String(d.notes ?? ""),
+    referralDetail: String(d.referralDetail ?? ""),
+    extraDetails: String(d.extraDetails ?? ""),
   };
 }
 
@@ -161,6 +163,8 @@ export async function promoteInquiryToPipeline(user: User, c: PromoteInquiryInpu
     source: "website",
     inquiryId: c.id,
     leadScore: 0,
+    referralDetail: "",
+    extraDetails: "",
     notes: c.description ? String(c.description).slice(0, 2000) : "",
     ownerUid: user.uid,
     createdAt: serverTimestamp(),
@@ -204,4 +208,81 @@ export async function updateDealStage(dealId: string, stage: DealStage, user: Us
 
 export function dealExistsForInquiry(deals: CrmDeal[], inquiryId: string): boolean {
   return deals.some((d) => d.sourceInquiryId === inquiryId);
+}
+
+export type ManualLeadInput = {
+  clinicName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  niche: Niche;
+  source: LeadSource;
+  referralDetail: string;
+  extraDetails: string;
+};
+
+function clip(s: string, n: number): string {
+  const t = s.trim();
+  return t.length <= n ? t : t.slice(0, n);
+}
+
+export async function createManualLead(user: User, input: ManualLeadInput, firestore: Firestore = db): Promise<void> {
+  const batch = writeBatch(firestore);
+  const accRef = doc(collection(firestore, "crm_accounts"));
+  const dealRef = doc(collection(firestore, "crm_deals"));
+  const clinic = clip(input.clinicName, 300) || "Clinic";
+  const contact = clip(input.contactName, 200) || clinic;
+  const email = clip(input.email, 320);
+  if (!email || !email.includes("@")) {
+    throw new Error("A valid email is required.");
+  }
+  const refDetail = input.source === "referral" ? clip(input.referralDetail, 500) : "";
+  const extra = clip(input.extraDetails, 4000);
+  const notesLine = [refDetail ? `Referral: ${refDetail}` : "", extra].filter(Boolean).join("\n\n");
+  batch.set(accRef, {
+    clinicName: clinic,
+    contactName: contact,
+    email,
+    phone: clip(input.phone, 50),
+    address: clip(input.address, 1000),
+    city: clip(input.city, 200),
+    niche: input.niche,
+    source: input.source,
+    inquiryId: "",
+    referralDetail: refDetail,
+    extraDetails: extra,
+    leadScore: 0,
+    notes: notesLine,
+    ownerUid: user.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(dealRef, {
+    accountId: accRef.id,
+    title: `Opportunity · ${clinic}`,
+    stage: "new_lead" as const,
+    value: 0,
+    currency: "PHP",
+    sourceInquiryId: "",
+    probability: 10,
+    ownerUid: user.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  const due = new Date();
+  due.setDate(due.getDate() + 1);
+  due.setHours(17, 0, 0, 0);
+  const actRef = doc(collection(firestore, "crm_activities"));
+  batch.set(actRef, {
+    dealId: dealRef.id,
+    accountId: accRef.id,
+    type: "follow_up",
+    title: "First follow-up — contact lead",
+    dueAt: Timestamp.fromDate(due),
+    ownerUid: user.uid,
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
 }
