@@ -36,6 +36,13 @@ export const STAGE_LABELS: Record<DealStage, string> = {
 
 export type Niche = "dentist" | "aesthetics" | "private_clinic" | "other";
 
+export const NICHE_LABELS: Record<Niche, string> = {
+  dentist: "Dental / dentist",
+  aesthetics: "Aesthetics",
+  private_clinic: "Private clinic",
+  other: "Other",
+};
+
 export const LEAD_SOURCES = [
   "referral",
   "cold_reach",
@@ -91,6 +98,10 @@ export type CrmDeal = {
   ownerUid: string;
   createdAt: string;
   updatedAt: string;
+  /** Firestore time for filtering; 0 if missing. */
+  createdAtMs: number;
+  /** Firestore time for filtering; 0 if missing. */
+  updatedAtMs: number;
   probability: number;
 };
 

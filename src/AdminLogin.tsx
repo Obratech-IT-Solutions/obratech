@@ -5,6 +5,7 @@ import {
   type User,
 } from "firebase/auth";
 import AdminCRM from "./AdminCRM.tsx";
+import { track } from "./analytics";
 import { auth } from "./firebase";
 import "./admin-login.css";
 
@@ -44,6 +45,7 @@ export default function AdminLogin() {
     setSigningIn(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
+      track.adminLogin();
     } catch (err: unknown) {
       const code = err && typeof err === "object" && "code" in err ? String((err as { code: string }).code) : "";
       if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {

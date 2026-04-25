@@ -10,6 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import {
+  BarChart2,
   Calendar,
   Kanban,
   LayoutDashboard,
@@ -17,20 +18,31 @@ import {
   Mail,
   MapPin,
   Menu,
+  Phone,
   Pencil,
   Plus,
+  FileUp,
   RefreshCw,
+  Trash2,
   Settings,
   Users,
   X,
 } from "lucide-react";
+import { track } from "./analytics";
 import { auth, db } from "./firebase";
 import { CrmLandingCalendar } from "./CrmLandingCalendar";
+import CrmAnalyticsView from "./CrmAnalyticsView";
 import CrmDashboardView from "./CrmDashboardView";
 import CrmPipelineView from "./CrmPipelineView";
 import CrmSettingsView from "./CrmSettingsView";
 import CrmAddLeadModal from "./CrmAddLeadModal";
-import { dealExistsForInquiry, fetchCrmDeals, promoteInquiryToPipeline } from "./crm/crmApi";
+import CrmImportCsvModal from "./CrmImportCsvModal";
+import {
+  dealExistsForInquiry,
+  deleteInquiryAndLinkedCrm,
+  fetchCrmDeals,
+  promoteInquiryToPipeline,
+} from "./crm/crmApi";
 import type { CrmDeal } from "./crm/crmModel";
 import "./admin-crm.css";
 
@@ -51,6 +63,9 @@ export type InquiryClient = {
   revisionNotes: string;
   deadlineAt: string;
   crmUpdatedAt: string;
+  importSource: string;
+  importCategory: string;
+  importPhone: string;
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -155,13 +170,14 @@ type Props = {
   user: User;
 };
 
-type AdminView = "dashboard" | "leads" | "pipeline" | "settings";
+type AdminView = "dashboard" | "analytics" | "leads" | "pipeline" | "settings";
 
 export default function AdminCRM({ user }: Props) {
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [crmRefreshKey, setCrmRefreshKey] = useState(0);
   const [deals, setDeals] = useState<CrmDeal[]>([]);
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [deletingInquiryId, setDeletingInquiryId] = useState<string | null>(null);
 
   const [clients, setClients] = useState<InquiryClient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,6 +196,7 @@ export default function AdminCRM({ user }: Props) {
   const [saving, setSaving] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const [importCsvOpen, setImportCsvOpen] = useState(false);
 
   const loadClients = useCallback(
     async (isRefresh = false) => {
@@ -230,6 +247,9 @@ export default function AdminCRM({ user }: Props) {
             revisionNotes,
             deadlineAt,
             crmUpdatedAt,
+            importSource: typeof d.importSource === "string" ? d.importSource : "",
+            importCategory: typeof d.importCategory === "string" ? d.importCategory : "",
+            importPhone: typeof d.importPhone === "string" ? d.importPhone : "",
           };
           return { row, ms };
         });
@@ -268,6 +288,10 @@ export default function AdminCRM({ user }: Props) {
   useEffect(() => {
     void loadClients(false);
   }, [loadClients]);
+
+  useEffect(() => {
+    track.crmView(activeView);
+  }, [activeView]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -311,12 +335,17 @@ export default function AdminCRM({ user }: Props) {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           c.email.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q),
+          c.address.toLowerCase().includes(q) ||
+          c.importPhone.toLowerCase().includes(q),
       );
     }
     if (calendarSelected) {
       const sel = calendarSelected;
       list = list.filter((c) => {
+        // Map/CSV rows usually have no meeting — always show them so they are not "lost" behind the day filter.
+        const isMapUnscheduled =
+          c.importSource === "map_csv" && !c.meetingDate?.trim() && !c.deadlineAt;
+        if (isMapUnscheduled) return true;
         const md = fromISODateLocal(c.meetingDate);
         const meetingMatch = md ? sameCalendarDay(md, sel) : false;
         const dd = fromISODateLocal(c.deadlineAt);
@@ -351,7 +380,11 @@ export default function AdminCRM({ user }: Props) {
         address: c.address,
         projectCategory: c.projectCategory,
         description: c.description,
+        importSource: c.importSource || undefined,
+        mapImportCategory: c.importCategory || undefined,
+        importPhone: c.importPhone || undefined,
       });
+      track.crmInquiryToPipeline();
       setCrmRefreshKey((k) => k + 1);
       await loadClients(true);
     } catch (e) {
@@ -359,6 +392,34 @@ export default function AdminCRM({ user }: Props) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPromotingId(null);
+    }
+  };
+
+  const handleDeleteInquiry = async (c: InquiryClient) => {
+    const label = c.name || c.email || "this lead";
+    if (
+      !window.confirm(
+        `Delete ${label} permanently? This removes the inquiry${
+          dealExistsForInquiry(deals, c.id) ? " and any linked pipeline deal, tasks, and account" : ""
+        }.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingInquiryId(c.id);
+    setError(null);
+    try {
+      await deleteInquiryAndLinkedCrm(c.id);
+      track.crmInquiryDeleted();
+      if (editClient?.id === c.id) closeEdit();
+      setCrmRefreshKey((k) => k + 1);
+      setDeals(await fetchCrmDeals());
+      await loadClients(true);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingInquiryId(null);
     }
   };
 
@@ -419,6 +480,14 @@ export default function AdminCRM({ user }: Props) {
           >
             <LayoutDashboard size={18} strokeWidth={2} aria-hidden />
             Dashboard
+          </button>
+          <button
+            type="button"
+            className={`crm-nav-item${activeView === "analytics" ? " is-active" : ""}`}
+            onClick={() => setActiveView("analytics")}
+          >
+            <BarChart2 size={18} strokeWidth={2} aria-hidden />
+            Analytics
           </button>
           <button
             type="button"
@@ -497,6 +566,17 @@ export default function AdminCRM({ user }: Props) {
               type="button"
               className="crm-mobile-nav-item"
               onClick={() => {
+                setActiveView("analytics");
+                closeMobileMenu();
+              }}
+            >
+              <BarChart2 size={18} strokeWidth={2} aria-hidden />
+              Analytics
+            </button>
+            <button
+              type="button"
+              className="crm-mobile-nav-item"
+              onClick={() => {
                 setActiveView("leads");
                 closeMobileMenu();
                 window.requestAnimationFrame(() => scrollToSection("crm-schedule"));
@@ -569,7 +649,14 @@ export default function AdminCRM({ user }: Props) {
           {activeView === "dashboard" ? (
             <CrmDashboardView user={user} refreshKey={crmRefreshKey} />
           ) : null}
-          {activeView === "pipeline" ? <CrmPipelineView user={user} refreshKey={crmRefreshKey} /> : null}
+          {activeView === "analytics" ? <CrmAnalyticsView user={user} refreshKey={crmRefreshKey} /> : null}
+          {activeView === "pipeline" ? (
+            <CrmPipelineView
+              user={user}
+              refreshKey={crmRefreshKey}
+              onChanged={() => setCrmRefreshKey((k) => k + 1)}
+            />
+          ) : null}
           {activeView === "settings" ? (
             <CrmSettingsView
               user={user}
@@ -584,7 +671,8 @@ export default function AdminCRM({ user }: Props) {
             <div>
               <h1>Leads inbox</h1>
               <p>
-                Web inquiries. Track meetings, revisions, and deadlines — or add a lead to the sales pipeline.
+                Website inquiries and <strong>map CSV imports</strong> land here. Use <strong>Add to pipeline</strong> when
+                you are ready. Manual “Add lead” (button) still creates a deal directly in the pipeline.
               </p>
             </div>
             <div className="crm-toolbar">
@@ -604,6 +692,23 @@ export default function AdminCRM({ user }: Props) {
               >
                 <Plus size={16} strokeWidth={2} aria-hidden />
                 Add lead
+              </button>
+              <button
+                type="button"
+                className="crm-btn-add-lead"
+                onClick={() => setImportCsvOpen(true)}
+                disabled={loading}
+              >
+                <FileUp size={16} strokeWidth={2} aria-hidden />
+                Import CSV
+              </button>
+              <button
+                type="button"
+                className="crm-btn-add-lead"
+                onClick={() => setActiveView("pipeline")}
+              >
+                <Kanban size={16} strokeWidth={2} aria-hidden />
+                View pipeline
               </button>
               <button
                 type="button"
@@ -653,13 +758,27 @@ export default function AdminCRM({ user }: Props) {
             )}
           </section>
 
+          <p className="crm-inbox-scope-hint" role="note">
+            <strong>Leads inbox</strong> is everything in the <code>inquiries</code> collection: public form submissions
+            and rows you import from CSV. Nothing is added to the sales pipeline until you use{" "}
+            <strong>Add to pipeline</strong>.
+          </p>
+          {calendarSelected ? (
+            <p className="crm-calendar-filter-hint" role="status">
+              Day filter for meetings/deadlines on {toISODateLocal(calendarSelected)}.{" "}
+              <strong>Map CSV</strong> imports (no meeting date) stay in the list.{" "}
+              <button type="button" className="crm-btn-text" onClick={clearCalendarFilter}>
+                Show all dates
+              </button>
+            </p>
+          ) : null}
           <div className="crm-stats">
             <div className="crm-stat">
-              <div className="crm-stat-label">Total leads</div>
+              <div className="crm-stat-label">Total in inbox</div>
               <div className="crm-stat-value">{clients.length}</div>
             </div>
             <div className="crm-stat">
-              <div className="crm-stat-label">Showing</div>
+              <div className="crm-stat-label">Showing{calendarSelected || search.trim() ? " (filtered)" : ""}</div>
               <div className="crm-stat-value">{filtered.length}</div>
             </div>
           </div>
@@ -677,7 +796,7 @@ export default function AdminCRM({ user }: Props) {
               {clients.length === 0
                 ? "No inquiries yet. Submissions from your public form will appear here."
                 : calendarSelected
-                  ? `No clients with a meeting or deadline on ${toISODateLocal(calendarSelected)}.`
+                  ? `No leads for ${toISODateLocal(calendarSelected)}. Map imports still show below if you imported any.`
                   : "No clients match your search."}
             </div>
           ) : null}
@@ -697,17 +816,31 @@ export default function AdminCRM({ user }: Props) {
                         {c.email}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      className="crm-card-edit"
-                      onClick={() => openEdit(c)}
-                      aria-label={`Edit CRM fields for ${c.name || c.email}`}
-                    >
-                      <Pencil size={16} strokeWidth={2} />
-                    </button>
+                    <div className="crm-card-top-actions">
+                      <button
+                        type="button"
+                        className="crm-card-edit"
+                        onClick={() => openEdit(c)}
+                        aria-label={`Edit CRM fields for ${c.name || c.email}`}
+                      >
+                        <Pencil size={16} strokeWidth={2} />
+                      </button>
+                      <button
+                        type="button"
+                        className="crm-card-delete"
+                        disabled={deletingInquiryId === c.id}
+                        onClick={() => void handleDeleteInquiry(c)}
+                        aria-label={`Delete lead ${c.name || c.email}`}
+                      >
+                        <Trash2 size={16} strokeWidth={2} />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="crm-badges">
+                    {c.importSource === "map_csv" ? (
+                      <span className="crm-badge crm-badge-map">Map import</span>
+                    ) : null}
                     <span className="crm-badge crm-badge-accent">{c.clientKind || "—"}</span>
                     <span className="crm-badge">
                       {CATEGORY_LABELS[c.projectCategory] ?? c.projectCategory}
@@ -728,6 +861,12 @@ export default function AdminCRM({ user }: Props) {
                       <Calendar size={14} strokeWidth={2} aria-hidden />
                       <span>Meeting: {c.meetingDate || "—"}</span>
                     </div>
+                    {c.importPhone ? (
+                      <div className="crm-meta-row">
+                        <Phone size={14} strokeWidth={2} aria-hidden />
+                        <span>{c.importPhone}</span>
+                      </div>
+                    ) : null}
                     {c.deadlineAt ? (
                       <div className="crm-meta-row crm-meta-deadline">
                         <Calendar size={14} strokeWidth={2} aria-hidden />
@@ -787,6 +926,16 @@ export default function AdminCRM({ user }: Props) {
         open={addLeadOpen}
         onClose={() => setAddLeadOpen(false)}
         onCreated={() => {
+          setCrmRefreshKey((k) => k + 1);
+          void loadClients(true);
+        }}
+      />
+      <CrmImportCsvModal
+        user={user}
+        open={importCsvOpen}
+        onClose={() => setImportCsvOpen(false)}
+        onImported={() => {
+          setCalendarSelected(undefined);
           setCrmRefreshKey((k) => k + 1);
           void loadClients(true);
         }}

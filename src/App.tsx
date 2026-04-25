@@ -1,4 +1,5 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { track } from "./analytics";
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -249,6 +250,7 @@ export default function App() {
         createdAt: serverTimestamp(),
       });
       setInquirySent(true);
+      track.inquirySubmitted();
     } catch (err) {
       console.error(err);
       setInquiryFormError(

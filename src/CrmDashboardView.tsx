@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
-import { Target, TrendingUp, UserPlus, Kanban, AlertCircle } from "lucide-react";
+import { AlertCircle, Kanban, Target, TrendingUp, UserPlus } from "lucide-react";
 import { db } from "./firebase";
-import { fetchCrmConfig, fetchCrmDeals, fetchCrmActivities } from "./crm/crmApi";
+import { fetchCrmActivities, fetchCrmConfig, fetchCrmDeals } from "./crm/crmApi";
 import { STAGE_LABELS, type DealStage } from "./crm/crmModel";
 
 const CLOSED: DealStage[] = ["closed_won", "closed_lost"];
@@ -123,7 +123,7 @@ export default function CrmDashboardView({ user, refreshKey }: Props) {
       <header className="crm-main-header">
         <div>
           <h1>Dashboard</h1>
-          <p>Next actions, pipeline health, and monthly target at a glance.</p>
+          <p>Next actions, pipeline health, and monthly target at a glance. Open the Analytics tab for top clients, deal size, and stage mix.</p>
         </div>
       </header>
 

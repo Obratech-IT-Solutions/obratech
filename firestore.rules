@@ -32,7 +32,12 @@ service cloud.firestore {
         'meetingStatus',
         'revisionNotes',
         'deadline',
-        'crmUpdatedAt'
+        'crmUpdatedAt',
+        'importSource',
+        'importPlaceId',
+        'importCategory',
+        'importPhone',
+        'importOwnerUid'
       ];
     }
 
@@ -48,7 +53,63 @@ service cloud.firestore {
         && after.description == before.description
         && after.meetingDate == before.meetingDate
         && after.consent == before.consent
-        && after.createdAt == before.createdAt;
+        && after.createdAt == before.createdAt
+        && (!('importSource' in before) || after.importSource == before.importSource)
+        && (!('importPlaceId' in before) || after.importPlaceId == before.importPlaceId)
+        && (!('importCategory' in before) || after.importCategory == before.importCategory)
+        && (!('importPhone' in before) || after.importPhone == before.importPhone)
+        && (!('importOwnerUid' in before) || after.importOwnerUid == before.importOwnerUid);
+    }
+
+    function mapCsvInquiryCreateKeys() {
+      return [
+        'name', 'email', 'address', 'clientKind', 'services', 'projectCategory',
+        'description', 'meetingDate', 'consent', 'importSource', 'importPlaceId',
+        'importCategory', 'importPhone', 'createdAt', 'importOwnerUid'
+      ];
+    }
+
+    // Staff (signed-in): map CSV rows into inquiries — not the same shape as the public form.
+    function mapCsvInquiryCreateValid() {
+      return request.auth != null
+        && request.resource.data.keys().hasOnly(mapCsvInquiryCreateKeys())
+        && request.resource.data.importSource == 'map_csv'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 300
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 0
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.address is string
+        && request.resource.data.address.size() >= 1
+        && request.resource.data.address.size() <= 1000
+        && request.resource.data.clientKind == 'business'
+        && request.resource.data.services is list
+        && request.resource.data.services.size() >= 0
+        && request.resource.data.services.size() <= 20
+        && request.resource.data.projectCategory in ['none', 'business', 'capstone', 'model3d']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 1
+        && request.resource.data.description.size() <= 5000
+        && request.resource.data.meetingDate is string
+        && request.resource.data.meetingDate.size() <= 10
+        && (request.resource.data.meetingDate.size() == 0
+            || (request.resource.data.meetingDate.size() == 10
+                && request.resource.data.meetingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && request.resource.data.consent == true
+        && request.resource.data.importPlaceId is string
+        && request.resource.data.importPlaceId.size() >= 1
+        && request.resource.data.importPlaceId.size() <= 500
+        && request.resource.data.importCategory is string
+        && request.resource.data.importCategory.size() >= 0
+        && request.resource.data.importCategory.size() <= 500
+        && request.resource.data.importPhone is string
+        && request.resource.data.importPhone.size() >= 0
+        && request.resource.data.importPhone.size() <= 50
+        && request.resource.data.importOwnerUid is string
+        && request.resource.data.importOwnerUid.size() >= 1
+        && request.resource.data.importOwnerUid.size() <= 200
+        && request.resource.data.createdAt is timestamp;
     }
 
     function crmFieldsValid() {
@@ -63,10 +124,13 @@ service cloud.firestore {
         && (!('crmUpdatedAt' in after) || after.crmUpdatedAt is timestamp);
     }
 
-    // Public inquiry form: clients may only CREATE new docs (no reads/updates/deletes).
+    // Public inquiry form OR staff map CSV import.
     match /inquiries/{inquiryId} {
       allow create: if
-        request.resource.data.keys().hasOnly(inquiryCreateKeys())
+        mapCsvInquiryCreateValid()
+        || (
+        request.auth == null
+        && request.resource.data.keys().hasOnly(inquiryCreateKeys())
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 200
@@ -90,7 +154,8 @@ service cloud.firestore {
             || (request.resource.data.meetingDate.size() == 10
                 && request.resource.data.meetingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && request.resource.data.consent == true
-        && request.resource.data.createdAt is timestamp;
+        && request.resource.data.createdAt is timestamp
+        );
 
       // CRM updates: auth users may only add/change CRM fields; inquiry payload stays immutable.
       allow update: if request.auth != null

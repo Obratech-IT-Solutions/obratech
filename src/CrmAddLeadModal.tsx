@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "firebase/auth";
 import { X } from "lucide-react";
+import { track } from "./analytics";
 import { createManualLead } from "./crm/crmApi";
 import type { LeadSource, Niche } from "./crm/crmModel";
 import { LEAD_SOURCES, LEAD_SOURCE_LABELS } from "./crm/crmModel";
@@ -68,6 +69,7 @@ export default function CrmAddLeadModal({ user, open, onClose, onCreated }: Prop
         referralDetail: form.referralDetail,
         extraDetails: form.extraDetails,
       });
+      track.crmManualLeadCreated();
       setForm(empty);
       onCreated();
       onClose();

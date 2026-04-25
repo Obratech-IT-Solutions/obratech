@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
@@ -29,8 +29,20 @@ export { db };
 
 export const auth = getAuth(firebaseApp);
 
-void isSupported().then((supported) => {
-  if (supported) {
-    getAnalytics(firebaseApp);
+let analyticsInstance: Analytics | null = null;
+
+/** Web-only; returns null in unsupported / blocked (e.g. ad blocker) environments. */
+export function getOrInitAnalytics(): Analytics | null {
+  if (typeof window === "undefined") return null;
+  if (analyticsInstance) return analyticsInstance;
+  try {
+    analyticsInstance = getAnalytics(firebaseApp);
+    return analyticsInstance;
+  } catch {
+    return null;
   }
+}
+
+void isSupported().then((supported) => {
+  if (supported) getOrInitAnalytics();
 });

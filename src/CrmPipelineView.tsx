@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
-import { Kanban } from "lucide-react";
-import { fetchCrmAccounts, fetchCrmDeals, updateDealStage } from "./crm/crmApi";
+import { Kanban, Trash2 } from "lucide-react";
+import { track } from "./analytics";
+import { deleteDealAndRelated, fetchCrmAccounts, fetchCrmDeals, updateDealStage } from "./crm/crmApi";
 import type { CrmAccount, CrmDeal, DealStage } from "./crm/crmModel";
 import { DEAL_STAGES, STAGE_LABELS } from "./crm/crmModel";
 
 type Props = {
   user: User;
   refreshKey: number;
+  onChanged?: () => void;
 };
 
-export default function CrmPipelineView({ user, refreshKey }: Props) {
+export default function CrmPipelineView({ user, refreshKey, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deals, setDeals] = useState<CrmDeal[]>([]);
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -57,12 +60,33 @@ export default function CrmPipelineView({ user, refreshKey }: Props) {
     setUpdating(dealId);
     try {
       await updateDealStage(dealId, stage, user);
+      track.crmDealStageChange(stage);
       await load();
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const onDeleteDeal = async (d: CrmDeal) => {
+    const name = accountName.get(d.accountId) ?? d.title;
+    if (!window.confirm(`Delete deal “${d.title}” (${name})? This removes the deal, its tasks, and the account if nothing else uses it.`)) {
+      return;
+    }
+    setDeletingId(d.id);
+    setErr(null);
+    try {
+      await deleteDealAndRelated(d.id);
+      track.crmDealDeleted();
+      onChanged?.();
+      await load();
+    } catch (e) {
+      console.error(e);
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -99,8 +123,21 @@ export default function CrmPipelineView({ user, refreshKey }: Props) {
             <div className="crm-pipeline-col-cards">
               {(byStage[stage] ?? []).map((d) => (
                 <article key={d.id} className="crm-pipeline-card">
-                  <h3 className="crm-pipeline-card-title">{d.title}</h3>
-                  <p className="crm-pipeline-card-sub">{accountName.get(d.accountId) ?? "Account"}</p>
+                  <div className="crm-pipeline-card-head">
+                    <div className="crm-pipeline-card-head-text">
+                      <h3 className="crm-pipeline-card-title">{d.title}</h3>
+                      <p className="crm-pipeline-card-sub">{accountName.get(d.accountId) ?? "Account"}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="crm-pipeline-card-delete"
+                      disabled={deletingId === d.id || updating === d.id}
+                      onClick={() => void onDeleteDeal(d)}
+                      aria-label={`Delete deal ${d.title}`}
+                    >
+                      <Trash2 size={16} strokeWidth={2} />
+                    </button>
+                  </div>
                   <p className="crm-pipeline-card-meta">
                     {d.value > 0 ? `${d.currency} ${d.value.toLocaleString()}` : "Value TBD"}{" "}
                     {d.probability > 0 ? `· ${d.probability}%` : null}
